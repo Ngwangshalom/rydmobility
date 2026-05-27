@@ -60,16 +60,14 @@ android {
         }
     }
 }
-
 dependencies {
-   implementation "com.facebook.react:react-android"
-    implementation platform("com.google.firebase:firebase-bom:34.5.0")
-implementation "androidx.multidex:multidex:2.0.1"
-   implementation "com.google.android.gms:play-services-auth:20.7.0"
+    implementation "com.facebook.react:react-android"
 
-    if (hermesEnabled.toBoolean()) {
-        implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
+    implementation platform("com.google.firebase:firebase-bom:34.5.0")
+
+    implementation "androidx.multidex:multidex:2.0.1"
+
+    implementation "com.google.android.gms:play-services-auth:20.7.0"
+
+    implementation("com.facebook.react:hermes-android")
 }
