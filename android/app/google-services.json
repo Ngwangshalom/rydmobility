@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "857637126473",
+    "project_id": "whappleride",
+    "storage_bucket": "whappleride.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:857637126473:android:76d3f31f292fa814ee1a98",
+        "android_client_info": {
+          "package_name": "com.ryd"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLw3FrnLNNuze-Gtxt032Q5dBklCu5PQ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

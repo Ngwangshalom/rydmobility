@@ -1,0 +1,14 @@
+{
+  "name": "Ryd",
+  "displayName": "Ryd",
+  "android": {
+    "package": "com.taxidouser.webiots",
+    "permissions": [
+      "INTERNET"
+    ]
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3291886888095986~5530708057",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
+  }
+}

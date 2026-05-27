@@ -1,0 +1,42 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+}
+
+plugins {
+    id("com.facebook.react.settings")
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+
+    repositories {
+        google()
+        mavenCentral()
+
+        maven {
+            url("$rootDir/../node_modules/@notifee/react-native/android/libs")
+        }
+
+        maven { url 'https://www.jitpack.io' }
+    }
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand()
+}
+
+rootProject.name = "TaxidoUserApp"
+
+include(":app")
+
+includeBuild("../node_modules/@react-native/gradle-plugin")
+
+include(":react-native-get-location")
+project(":react-native-get-location").projectDir =
+    new File(rootProject.projectDir, "../node_modules/react-native-get-location/android")
