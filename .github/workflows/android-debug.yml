@@ -24,7 +24,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ✅ ADD ANDROID SDK SETUP (IMPORTANT)
+      # IMPORTANT: Install Android SDK properly
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -34,9 +34,14 @@ jobs:
       - name: Grant Gradle Permission
         run: chmod +x android/gradlew
 
-      # ✅ MUST COME BEFORE GRADLE BUILD
-      - name: Setup local.properties
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+      # FIX: sdk.dir must exist BEFORE build
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      # FIX: avoid CMake crash from mismatch
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Build Debug APK
         run: |
