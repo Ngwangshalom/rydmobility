@@ -24,11 +24,19 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # ✅ ADD ANDROID SDK SETUP (IMPORTANT)
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Dependencies
         run: npm install
 
       - name: Grant Gradle Permission
         run: chmod +x android/gradlew
+
+      # ✅ MUST COME BEFORE GRADLE BUILD
+      - name: Setup local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
       - name: Build Debug APK
         run: |
