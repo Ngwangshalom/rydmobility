@@ -1,0 +1,187 @@
+{
+  "buildFiles": [
+    "/var/www/rydmobility/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-camera-roll/camera-roll/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-clipboard/clipboard/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-community/geolocation/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-documents/picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/@react-native-google-signin/google-signin/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/lottie-react-native/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-android-location-enabler/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-blob-util/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-contacts/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-google-mobile-ads/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-image-picker/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-maps/android/src/main/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-permissions/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-share/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-webview/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt",
+    "/var/www/rydmobility/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/usr/lib/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/var/www/rydmobility/android/app/.cxx/Debug/174e1fa1/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/usr/lib/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/var/www/rydmobility/android/app/.cxx/Debug/174e1fa1/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "react_codegen_rncameraroll::@60139d220751b3dabc04": {
+      "artifactName": "react_codegen_rncameraroll",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_AndroidLocationEnablerSpec::@56da1ed2770beb09b300": {
+      "artifactName": "react_codegen_AndroidLocationEnablerSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_safeareacontext::@7984cd80db47aa7b952a": {
+      "artifactName": "react_codegen_safeareacontext",
+      "abi": "arm64-v8a",
+      "output": "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_safeareacontext.so",
+      "runtimeFiles": [
+        "/root/.gradle/caches/8.13/transforms/ac893845509271e2888e84a01fd2e9fa/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    },
+    "react_codegen_RNPermissionsSpec::@7ad697819b753921c957": {
+      "artifactName": "react_codegen_RNPermissionsSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec": {
+      "artifactName": "react_codegen_rngesturehandler_codegen",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c": {
+      "artifactName": "react_codegen_RNCWebViewSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rndocumentpickerCGen::@aac1846a245ca418eb66": {
+      "artifactName": "react_codegen_rndocumentpickerCGen",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "appmodules::@6890427a1f51a3e7e1df": {
+      "artifactName": "appmodules",
+      "abi": "arm64-v8a",
+      "output": "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libappmodules.so",
+      "runtimeFiles": [
+        "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_safeareacontext.so",
+        "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+        "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+        "/root/.gradle/caches/8.13/transforms/ac893845509271e2888e84a01fd2e9fa/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so"
+      ]
+    },
+    "react_codegen_RNGoogleMobileAdsSpec::@c00c605517d10bc7886c": {
+      "artifactName": "react_codegen_RNGoogleMobileAdsSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_ReactNativeBlobUtilSpec::@7d3cc6108106e04bb830": {
+      "artifactName": "react_codegen_ReactNativeBlobUtilSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnsvg::@4f40eb209d0c0b4a3b65": {
+      "artifactName": "react_codegen_rnsvg",
+      "abi": "arm64-v8a",
+      "output": "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_rnsvg.so",
+      "runtimeFiles": [
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/root/.gradle/caches/8.13/transforms/ac893845509271e2888e84a01fd2e9fa/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_RNCNetInfoSpec::@c36c96bfd5b5770618a5": {
+      "artifactName": "react_codegen_RNCNetInfoSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNMapsSpecs::@5748abef1962d24942ec": {
+      "artifactName": "react_codegen_RNMapsSpecs",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnworklets::@68f58d84d4754f193387": {
+      "artifactName": "react_codegen_rnworklets",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNGoogleSignInCGen::@337b7b353bd94a4215c0": {
+      "artifactName": "react_codegen_RNGoogleSignInCGen",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnasyncstorage::@1596841e19ec5b9eeffe": {
+      "artifactName": "react_codegen_rnasyncstorage",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNCGeolocationSpec::@1b959fcb56e23f7716ba": {
+      "artifactName": "react_codegen_RNCGeolocationSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnclipboard::@6385240493dfcaf22ab7": {
+      "artifactName": "react_codegen_rnclipboard",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnreanimated::@8afabad14bfffa3f8b9a": {
+      "artifactName": "react_codegen_rnreanimated",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNImagePickerSpec::@f66ee9a2efecfb28bee4": {
+      "artifactName": "react_codegen_RNImagePickerSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_rnscreens::@25bcbd507e98d3a854ad": {
+      "artifactName": "react_codegen_rnscreens",
+      "abi": "arm64-v8a",
+      "output": "/var/www/rydmobility/android/app/build/intermediates/cxx/Debug/174e1fa1/obj/arm64-v8a/libreact_codegen_rnscreens.so",
+      "runtimeFiles": [
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/reactnative/libs/android.arm64-v8a/libreactnative.so",
+        "/root/.gradle/caches/8.13/transforms/cfc249426273871081a22fd7fff003c2/transformed/jetified-react-android-0.82.1-debug/prefab/modules/jsi/libs/android.arm64-v8a/libjsi.so",
+        "/root/.gradle/caches/8.13/transforms/ac893845509271e2888e84a01fd2e9fa/transformed/jetified-fbjni-0.7.0/prefab/modules/fbjni/libs/android.arm64-v8a/libfbjni.so"
+      ]
+    },
+    "react_codegen_lottiereactnative::@0fa4dc904d7e359a99fb": {
+      "artifactName": "react_codegen_lottiereactnative",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNContactsSpec::@f22bb5a2f7260e3ff95a": {
+      "artifactName": "react_codegen_RNContactsSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    },
+    "react_codegen_RNShareSpec::@e6c4c2b5aedb2ea213b7": {
+      "artifactName": "react_codegen_RNShareSpec",
+      "abi": "arm64-v8a",
+      "runtimeFiles": []
+    }
+  }
+}
