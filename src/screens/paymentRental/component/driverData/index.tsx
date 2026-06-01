@@ -26,11 +26,18 @@ export function DriverData({ driverDetails }: { driverDetails: any }) {
     });
   };
 
-  const gotoCall = (item) => {
-    const phoneNumber = `${item?.driver?.phone}`;
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
-
+  
+ const gotoCall = (item: any) => {
+  
+  navigate('AudioCall', {
+    currentUserId: item?.rider?.id || 'current_user',
+    callType: 'outgoing',
+    targetUserId: item?.driver?.id || item?.driver?.userId || 'unknown_driver',
+    targetUserName: item?.driver?.name || item?.driver?.username || 'Driver',
+    targetImage:item?.driver?.profile_image_url,
+    callId: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  });
+};
 
   const handleShare = async () => {
     try {

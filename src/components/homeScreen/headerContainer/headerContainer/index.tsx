@@ -50,7 +50,7 @@ export function HeaderComponent() {
         { flexDirection: viewRTLStyle },
       ]}
     >
-      <Image source={Images.splash} style={styles.logo} />
+      <Image source={Images.finalLogo} style={styles.logo} />
       <View style={[external.fd_row, external.ai_center]}>
         <View style={[external.mh_8]}>
           <IconBackground

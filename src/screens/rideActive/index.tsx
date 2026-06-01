@@ -530,11 +530,18 @@ export function RideActive() {
     });
   };
 
-  const handleCall = (activeRideOTP: any) => {
-    const phoneNumber = `${activeRideOTP?.driver?.phone}`;
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
-
+    const handleCall = (activeRideOTP: any) => {
+  // Navigate to AudioCall screen instead of making actual phone call
+  navigate('AudioCall', {
+    currentUserId: activeRideOTP?.rider?.id, // Your current user ID from auth/state
+    callType: 'outgoing',
+    targetUserId: activeRideOTP?.driver?.id || activeRideOTP?.driver?.userId || 'unknown_driver',
+    targetUserName: activeRideOTP?.driver?.name || activeRideOTP?.driver?.username || 'Driver',
+    targetUserPhone: activeRideOTP?.driver?.phone, // Optional: keep phone number if needed
+    targetImage:activeRideOTP?.driver?.profile_image_url,
+    callId: 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  });
+};
   const handleSOSPress = () => {
     bottomSheetRef.current?.close();
     setTimeout(() => {

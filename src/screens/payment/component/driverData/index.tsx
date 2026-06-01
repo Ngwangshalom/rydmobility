@@ -21,9 +21,16 @@ export function DriverData({ driverDetails, duration }) {
     navigate("ChatScreen", { driverId: driverDetails?.driver?.id, riderId: driverDetails?.rider?.id, rideId: driverDetails?.id, driverName: driverDetails?.driver?.name, driverImage: driverDetails?.driver?.profile_image_url });
   };
 
-  const gotoDiler = (phoneNumber: number) => {
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
+ const gotoDiler = (driverDetails: any) => {
+ navigate('AudioCall', {
+    currentUserId: driverDetails?.rider?.id,
+    callType: 'outgoing',
+    targetUserId: driverDetails?.driver?.id,
+    targetUserName: driverDetails?.driver?.name,
+    targetImage:driverDetails?.driver?.profile_image_url,
+    callId: 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+  });
+};
 
   useEffect(() => {
     const now = new Date();

@@ -67,5 +67,13 @@ const Images: any = {
   gpsDisable: require("@assets/images/map/gpsDisable.png"),
   lowBalance: require("@assets/images/wallet/lowBalance.png"),
   paymentno: require("@assets/images/paymentno.png"),
+  logo: require('@assets/images/logo/noBgColor.png'),
+  logoBgWhite: require('@assets/images/logo/noBgWhite.png'),
+  logoWhiteTransparent: require('@assets/images/logo/noBgBlackno.png'),
+  logoBlackTransparent: require('@assets/images/logo/noBgWhiteno.png'),
+  logoOriginal: require('@assets/images/logo/with_paddingno.png'),
+  favicon: require('@assets/images/logo/symbol.svg'),
+  finalLogo: require('@assets/images/logo/675.png'),
+
 };
 export default Images;

@@ -210,7 +210,7 @@ export function Splash() {
     <View style={[external.fx_1, { backgroundColor: appColors.whiteColor }]}>
       <View style={[external.ai_center, external.js_center, external.fx_1]}>
         <Image
-          source={splashImage ? { uri: splashImage } : Images.splashUser}
+          source={Images.finalLogo}
           style={styles.img}
           onError={() => deleteValue("splashImage")}
         />

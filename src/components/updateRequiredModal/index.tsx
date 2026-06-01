@@ -25,7 +25,7 @@ export const UpdateRequiredModal: React.FC<UpdateRequiredModalProps> = ({ visibl
                 <View style={[styles.modalContainer, { backgroundColor: isDark ? appColors.darkHeader : appColors.whiteColor }]}>
                     <View style={[styles.imageContainer, { backgroundColor: isDark ? appColors.darkPrimary : appColors.lightGreen }]}>
                         <Image
-                            source={Images.splash}
+                            source={Images.finalLogo}
                             style={[styles.image]}
                         />
                     </View>

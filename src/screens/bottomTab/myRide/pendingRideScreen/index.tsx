@@ -365,9 +365,16 @@ export function PendingRideScreen() {
     });
   };
 
-  const gotoCall = item => {
-    const phoneNumber = `${item?.driver?.phone}`;
-    Linking.openURL(`tel:${phoneNumber}`);
+ const gotoCall = item => {
+     navigate('AudioCall' as any, {
+    currentUserId: item?.rider?.id, 
+    callType: 'outgoing',
+    targetUserId: item?.driver?.id ,
+    targetUserName: item?.driver?.name || item?.driver?.username || 'Driver',
+    targetUserPhone: item?.driver?.phone, 
+    targetImage: item?.driver?.driver_profile_image_url,
+    callId: 'call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11)
+  } as any);
   };
 
   const formattedDate = apiformatDates(item.created_at);

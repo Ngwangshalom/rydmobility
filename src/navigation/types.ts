@@ -139,4 +139,17 @@ export type RootStackParamList = {
   RideMapView: { rideData: any };
   DriverRequestScreen: undefined;
   DriverRequestDetailsScreen: { item: any };
+  WhapplePayScreen: undefined;
+  AudioCall: undefined;
+  Stopover: undefined;
+  EditStopOver: undefined;
+  carpoolingDate: undefined;
+  EditVehicle: undefined;
+  SeatSet: undefined;
+  PriceSet: undefined;
+  CarpoolingDetails: undefined;
+  AddressChange: undefined;
+  EditDetails: undefined;
+  FindLocationScreen: undefined;
+
 };

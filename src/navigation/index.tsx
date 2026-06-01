@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "../api/methods";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -70,6 +70,7 @@ import { OneWayDaily } from "../screens/findDriver/oneWayDaily";
 import { OneWayRideDetails } from "../screens/findDriver/oneWayRideDetails";
 import { PdfViewer } from "../screens/PdfViewer";
 import { NoInternalServer } from "@src/components/noInternalServer";
+import WhapplePayScreen from "@src/screens/topUpWallet/whapplepay";
 import {
   CarpoolingDate,
   CarpoolingDetails,
@@ -86,16 +87,151 @@ import { EditDetails } from "@src/screens/bottomTab/profileTab/editProfile/editD
 import { FindLocationScreen } from "@src/screens/findDriver/locationScreen";
 import { DriverRequestScreen } from "@src/screens/bottomTab/profileTab/profileSetting/driverRequest";
 import { DriverRequestDetailsScreen } from "@src/screens/bottomTab/profileTab/profileSetting/driverRequest/details";
+import AudioCallScreen from "@src/screens/audioCall";
+import socketService from "@src/services/socketService";
+import { Alert, Vibration, Platform } from "react-native";
+import Sound from "react-native-sound";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Sound setup
+Sound.setCategory("Playback", true);
+
+// Types
+interface CallData {
+  fromUserId: string;
+  fromUserName: string;
+  fromUserImage?: string;
+  offer: RTCSessionDescriptionInit;
+  callId?: string;
+}
+
 const MyStack: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean | null>(true);
+  const incomingSoundRef = useRef<Sound | null>(null);
+  const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize sound
+  const initializeSound = useCallback(() => {
+    try {
+      incomingSoundRef.current = new Sound(
+        require("@assets/sounds/ringtone.mp3"),
+        (error) => {
+          if (error) {
+            console.log("❌ Failed to load incoming call sound:", error);
+            return;
+          }
+          incomingSoundRef.current?.setNumberOfLoops(-1);
+        }
+      );
+    } catch (error) {
+      console.log("❌ Exception during sound initialization:", error);
+    }
+  }, []);
+
+  // Stop incoming call sound and vibration
+  const stopIncomingSound = useCallback(() => {
+    // Stop sound
+    if (incomingSoundRef.current) {
+      try {
+        incomingSoundRef.current.stop();
+      } catch (error) {
+        console.log("❌ Error stopping audio:", error);
+      }
+    }
+
+    // Stop vibration
+    Vibration.cancel();
+    if (vibrationIntervalRef.current) {
+      clearInterval(vibrationIntervalRef.current);
+      vibrationIntervalRef.current = null;
+    }
+  }, []);
+
+  // Play incoming call sound and vibration
+  const playIncomingSound = useCallback(() => {
+    stopIncomingSound();
+
+    // Handle vibration
+    if (Platform.OS === "android") {
+      const pattern = [0, 800, 600, 800, 600];
+      Vibration.vibrate(pattern, true);
+    } else {
+      const vibrateOnce = () => {
+        Vibration.vibrate(800);
+      };
+      vibrateOnce();
+      vibrationIntervalRef.current = setInterval(vibrateOnce, 1400);
+    }
+
+    // Play ringtone
+    if (incomingSoundRef.current) {
+      try {
+        incomingSoundRef.current.play((success) => {
+          if (!success) {
+            console.log("⚠️ Sound playback failed");
+          }
+        });
+      } catch (error) {
+        console.log("❌ Error playing incoming sound:", error);
+      }
+    }
+  }, [stopIncomingSound]);
+
+  // Handle incoming call
+  const handleIncomingCall = useCallback((callData: CallData) => {
+    console.log("📞 Incoming call received:", callData);
+
+    // Validate call data
+    if (!callData.offer) {
+      console.error("❌ Invalid call data: missing offer");
+      return;
+    }
+
+    // Stop any ongoing sound/vibration
+    stopIncomingSound();
+
+    // Navigate to AudioCall screen
+    navigationRef.current?.navigate("AudioCall", {
+      currentUserId: "current_user_id", // TODO: Get from auth context
+      currentUserName: "Current User", // TODO: Get from auth context
+      currentUserImage: "", // TODO: Get from auth context
+      callType: "incoming",
+      callerUserId: callData.fromUserId,
+      callerUserName: callData.fromUserName,
+      callerUserImage: callData.fromUserImage,
+      offer: callData.offer,
+      callId: callData.callId,
+    });
+  }, [stopIncomingSound]);
+
+  // Setup socket listeners
   useEffect(() => {
-    NetInfo.addEventListener(state => {
+    initializeSound();
+
+    const unsubscribe = socketService.on("incomingCall", (data: CallData) => {
+      console.log("📞 Incoming call event triggered");
+      playIncomingSound();
+      handleIncomingCall(data);
+    });
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+      stopIncomingSound();
+      if (incomingSoundRef.current) {
+        incomingSoundRef.current.release();
+        incomingSoundRef.current = null;
+      }
+    };
+  }, [initializeSound, playIncomingSound, handleIncomingCall, stopIncomingSound]);
+
+  // Network connectivity listener
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
       setIsConnected(state.isConnected);
     });
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -123,28 +259,13 @@ const MyStack: React.FC = () => {
             <Stack.Screen name="AppPageScreen" component={AppPageScreen} />
             <Stack.Screen name="CompleteRide" component={CompleteRide} />
             <Stack.Screen name="LocationSelect" component={LocationSelect} />
-            <Stack.Screen
-              name="ActiveRideScreen"
-              component={ActiveRideScreen}
-            />
-            <Stack.Screen
-              name="CancelRideScreen"
-              component={CancelRideScreen}
-            />
-            <Stack.Screen
-              name="PendingRideScreen"
-              component={PendingRideScreen}
-            />
+            <Stack.Screen name="ActiveRideScreen" component={ActiveRideScreen} />
+            <Stack.Screen name="CancelRideScreen" component={CancelRideScreen} />
+            <Stack.Screen name="PendingRideScreen" component={PendingRideScreen} />
             <Stack.Screen name="RideMapView" component={RideMapView} />
-            <Stack.Screen
-              name="ScheduleRideScreen"
-              component={ScheduleRideScreen}
-            />
+            <Stack.Screen name="ScheduleRideScreen" component={ScheduleRideScreen} />
             <Stack.Screen name="HomeScreen" component={HomeScreen} />
-            <Stack.Screen
-              name="DateTimeSchedule"
-              component={DateTimeSchedule}
-            />
+            <Stack.Screen name="DateTimeSchedule" component={DateTimeSchedule} />
             <Stack.Screen name="Rental" component={DetailContainer} />
             <Stack.Screen name="DriverDetails" component={DriverDetails} />
             <Stack.Screen name="FindingDriver" component={FindingDriver} />
@@ -167,50 +288,29 @@ const MyStack: React.FC = () => {
             <Stack.Screen name="HomeService" component={HomeService} />
             <Stack.Screen name="PaymentWebView" component={PaymentWebView} />
             <Stack.Screen name="RentalLocation" component={RentalLocation} />
-            <Stack.Screen
-              name="RentalLocationSearch"
-              component={RentalLocationSearch}
-            />
+            <Stack.Screen name="RentalLocationSearch" component={RentalLocationSearch} />
             <Stack.Screen name="LocationSave" component={LocationSave} />
             <Stack.Screen name="RentalBooking" component={RentalBooking} />
-            <Stack.Screen
-              name="RentalVehicleSelect"
-              component={RentalVehicleSelect}
-            />
+            <Stack.Screen name="RentalVehicleSelect" component={RentalVehicleSelect} />
             <Stack.Screen name="CreateTicket" component={CreateTicket} />
             <Stack.Screen name="SupportTicket" component={SupportTicket} />
             <Stack.Screen name="TicketDetails" component={TicketDetails} />
-            <Stack.Screen
-              name="RentalCarDetails"
-              component={RentalCarDetails}
-            />
+            <Stack.Screen name="RentalCarDetails" component={RentalCarDetails} />
             <Stack.Screen name="AmbulanceSearch" component={AmbulanceSearch} />
             <Stack.Screen name="BookAmbulance" component={BookAmbulance} />
-            <Stack.Screen
-              name="AmbulancePayment"
-              component={AmbulancePayment}
-            />
+            <Stack.Screen name="AmbulancePayment" component={AmbulancePayment} />
             <Stack.Screen name="CarpoolingHome" component={CarpoolingHome} />
             <Stack.Screen name="PublishRide" component={PublishRide} />
             <Stack.Screen name="AddVehicle" component={AddVehicle} />
             <Stack.Screen name="NoService" component={NoService} />
             <Stack.Screen name="FindDriverHome" component={FindDriverHome} />
             <Stack.Screen name="OneWaySelect" component={OneWaySelect} />
-            <Stack.Screen
-              name="OneWayRideDetails"
-              component={OneWayRideDetails}
-            />
+            <Stack.Screen name="OneWayRideDetails" component={OneWayRideDetails} />
             <Stack.Screen name="OneWayDaily" component={OneWayDaily} />
             <Stack.Screen name="AmbulanceHome" component={AmbulanceHome} />
             <Stack.Screen name="PdfViewer" component={PdfViewer} />
-            <Stack.Screen
-              name="NoInternalServer"
-              component={NoInternalServer}
-            />
-            <Stack.Screen
-              name="ChooseRiderScreen"
-              component={ChooseRiderScreen}
-            />
+            <Stack.Screen name="NoInternalServer" component={NoInternalServer} />
+            <Stack.Screen name="ChooseRiderScreen" component={ChooseRiderScreen} />
             <Stack.Screen name="ReferralList" component={ReferralList} />
             <Stack.Screen name="ReferralID" component={ReferralID} />
             <Stack.Screen name="Stopover" component={Stopover} />
@@ -219,23 +319,20 @@ const MyStack: React.FC = () => {
             <Stack.Screen name="EditVehicle" component={EditVehicle} />
             <Stack.Screen name="SeatSet" component={SeatSet} />
             <Stack.Screen name="PriceSet" component={PriceSet} />
-            <Stack.Screen
-              name="CarpoolingDetails"
-              component={CarpoolingDetails}
-            />
+            <Stack.Screen name="CarpoolingDetails" component={CarpoolingDetails} />
             <Stack.Screen name="AddressChange" component={AddressChange} />
             <Stack.Screen name="EditDetails" component={EditDetails} />
+            <Stack.Screen name="FindLocationScreen" component={FindLocationScreen} />
+            <Stack.Screen name="DriverRequestScreen" component={DriverRequestScreen} />
+            <Stack.Screen name="DriverRequestDetailsScreen" component={DriverRequestDetailsScreen} />
+            <Stack.Screen name="WhapplePayScreen" component={WhapplePayScreen} />
             <Stack.Screen
-              name="FindLocationScreen"
-              component={FindLocationScreen}
-            />
-            <Stack.Screen
-              name="DriverRequestScreen"
-              component={DriverRequestScreen}
-            />
-            <Stack.Screen
-              name="DriverRequestDetailsScreen"
-              component={DriverRequestDetailsScreen}
+              name="AudioCall"
+              component={AudioCallScreen}
+              options={{
+                presentation: "modal",
+                gestureEnabled: false,
+              }}
             />
           </>
         )}
