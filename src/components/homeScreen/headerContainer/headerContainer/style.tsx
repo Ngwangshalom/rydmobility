@@ -10,11 +10,12 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.FONT25,
     color: appColors.whiteColor,
   },
-  logo: {
-    width: windowWidth(120),
-    height: windowHeight(20),
+ logo: {
+    width: windowWidth(150),
+    height: windowHeight(50),
     resizeMode: 'contain',
-    tintColor: appColors.whiteColor
+    tintColor: appColors.whiteColor,
+    aspectRatio: 1.7, // Adjust this ratio based on your actual logo dimensions
   }
 });
 export { styles };

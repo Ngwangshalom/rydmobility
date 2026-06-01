@@ -1,30 +1,25 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  Image, 
+  ActivityIndicator, 
+  Alert, 
+  StyleSheet, 
   Platform,
-  StyleSheet,
+  KeyboardAvoidingView,
+  ScrollView
 } from "react-native";
-import { WebView } from "react-native-webview";
+import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import darkMapStyle from "@src/screens/darkMapStyle";
-import Images from "@utils/images";
-import { useValues } from "@src/utils/context/index";
+import Images from "@src/utils/images";
+import { useValues } from "@src/utils/context/index";;
 import styles from "./styles";
 import { Back, AddressMarker } from "@src/utils/icons";
-import {
-  appColors,
-  appFonts,
-  fontSizes,
-  windowHeight,
-  windowWidth,
-} from "@src/themes";
+import { appColors, appFonts, fontSizes, windowHeight, windowWidth } from "@src/themes";
 import { Button } from "@src/commonComponent";
 import { SaveLocationDataInterface } from "@src/api/interface/saveLocationinterface";
 import { addSaveLocation, updateSaveLocation } from "@src/api/store/actions";
@@ -32,11 +27,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { userSaveLocation } from "@src/api/store/actions/saveLocationAction";
 import { external } from "@src/styles/externalStyle";
 import useStoredLocation from "@src/components/helper/useStoredLocation";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetView,
-  BottomSheetTextInput,
-} from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 
 interface RouteParams {
   mode?: string;
@@ -44,93 +35,71 @@ interface RouteParams {
   locationDetails?: {
     title?: string;
     type?: string;
-    location_coordinates?: {
-      lat: number;
-      lng: number;
-    };
+    latitude?: number;
+    longitude?: number;
   };
 }
 
-const BackButton = React.memo(
-  ({
-    onPress,
-    linearColorStyle,
-  }: {
-    onPress: () => void;
-    linearColorStyle: string;
-  }) => (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={[styles.backView, { backgroundColor: linearColorStyle }]}>
-      <Back />
-    </TouchableOpacity>
-  ),
-);
+const BackButton = React.memo(({ onPress, linearColorStyle }: { onPress: () => void; linearColorStyle: string }) => (
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={onPress}
+    style={[styles.backView, { backgroundColor: linearColorStyle }]}
+  >
+    <Back />
+  </TouchableOpacity>
+));
 
-const AddressInput = React.memo(
-  ({
-    fetchingAddress,
-    currentAddress,
-    translateData,
-    linearColorStyle,
-    textColorStyle,
-    viewRTLStyle,
-    isDark,
-    darkBorder,
-    primaryGray,
-  }: any) => (
-    <View
-      style={[
-        styles.textInputContainer,
-        { backgroundColor: linearColorStyle },
-        { flexDirection: viewRTLStyle },
-      ]}>
-      <View
-        style={[styles.addressMarkerIcon, { backgroundColor: linearColorStyle }]}>
-        <AddressMarker />
-      </View>
-      <View
-        style={[
-          styles.inputLine,
-          {
-            borderColor: isDark ? darkBorder : primaryGray,
-          },
-        ]}
-      />
-      <Text
-        style={[
-          styles.textInput,
-          { backgroundColor: linearColorStyle },
-          { color: textColorStyle },
-        ]}>
-        {fetchingAddress
-          ? translateData.gettingAddress
-          : currentAddress
-            ? currentAddress.length > 60
-              ? currentAddress.substring(0, 60) + "..."
-              : currentAddress
-            : translateData.moveMapToSelectLocation}
-      </Text>
+const AddressInput = React.memo(({
+  fetchingAddress,
+  currentAddress,
+  translateData,
+  linearColorStyle,
+  textColorStyle,
+  viewRTLStyle,
+  isDark,
+  darkBorder,
+  primaryGray
+}: any) => (
+  <View style={[styles.textInputContainer, { backgroundColor: linearColorStyle }, { flexDirection: viewRTLStyle }]}>
+    <View style={[styles.addressMarkerIcon, { backgroundColor: linearColorStyle }]}>
+      <AddressMarker />
     </View>
-  ),
-);
+    <View
+      style={[styles.inputLine, {
+        borderColor: isDark ? darkBorder : primaryGray,
+      }]}
+    />
+    <TextInput
+      style={[styles.textInput, { backgroundColor: linearColorStyle }, { color: textColorStyle }]}
+      value={fetchingAddress ? translateData.gettingAddress : currentAddress || translateData.moveMapToSelectLocation}
+      placeholder={translateData.searchHere}
+      placeholderTextColor={textColorStyle}
+      editable={false}
+    />
+  </View>
+));
 
-const ConfirmButton = React.memo(
-  ({ onPress, fetchingAddress, loadingMap, translateData, whiteColor }: any) => (
-    <TouchableOpacity
-      style={styles.confirmButton}
-      onPress={onPress}
-      activeOpacity={0.7}
-      disabled={fetchingAddress || loadingMap}>
-      {fetchingAddress ? (
-        <ActivityIndicator size="large" color={whiteColor} />
-      ) : (
-        <Text style={styles.confirmText}>{translateData.confirmLocation}</Text>
-      )}
-    </TouchableOpacity>
-  ),
-);
+const ConfirmButton = React.memo(({
+  onPress,
+  fetchingAddress,
+  loadingMap,
+  translateData,
+  whiteColor
+}: any) => (
+  <TouchableOpacity
+    style={styles.confirmButton}
+    onPress={onPress}
+    activeOpacity={0.7}
+    disabled={fetchingAddress || loadingMap}
+  >
+    {fetchingAddress ? (
+      <ActivityIndicator size="large" color={whiteColor} />
+    ) : (
+      <Text style={styles.confirmText}>{translateData.confirmLocation}</Text>
+    )}
+  </TouchableOpacity>
+));
 
 const PinMarker = React.memo(({ pinImage }: { pinImage: any }) => (
   <View style={styles.pointerMarker}>
@@ -139,179 +108,211 @@ const PinMarker = React.memo(({ pinImage }: { pinImage: any }) => (
 ));
 
 export function LocationSave() {
-  const {
-    isDark,
-    linearColorStyle,
-    textColorStyle,
-    viewRTLStyle,
-    textRTLStyle,
-    Google_Map_Key,
-    bgFullStyle,
-  } = useValues();
+  const { isDark, linearColorStyle, textColorStyle, viewRTLStyle, textRTLStyle, Google_Map_Key, bgFullStyle } = useValues();
   const [currentAddress, setCurrentAddress] = useState("");
   const { goBack } = useNavigation();
   const route = useRoute();
-  const { mode, locationID, locationDetails } = (route.params ||
-    {}) as RouteParams;
-  const [locationTitle, setLocationTitle] = useState(
-    locationDetails?.title || "",
-  );
+  const { mode, locationID, locationDetails } = (route.params || {}) as RouteParams;
+  const [locationTitle, setLocationTitle] = useState(locationDetails?.title || "");
   const dispatch = useDispatch();
-  const { translateData, taxidoSettingData } = useSelector(
-    (state: any) => state.setting,
-  );
+  const { translateData, taxidoSettingData } = useSelector((state: any) => state.setting);
   const { latitude, longitude } = useStoredLocation();
   const webViewRef = useRef<WebView>(null);
   const [loadingMap, setLoadingMap] = useState(true);
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
-
-  const initialLat =
-    mode === "edit" && locationDetails?.location_coordinates?.lat
-      ? locationDetails.location_coordinates.lat
-      : latitude || 21.1702;
-  const initialLng =
-    mode === "edit" && locationDetails?.location_coordinates?.lng
-      ? locationDetails.location_coordinates.lng
-      : longitude || 72.8311;
-
-  const [titleError, setTitleError] = useState("");
-  const [mapCenterCoords, setMapCenterCoords] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [titleError, setTitleError] = useState('');
+  const [mapCenterCoords, setMapCenterCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [fetchingAddress, setFetchingAddress] = useState(false);
   const [saveLoading, setsaveLoading] = useState(false);
   const saveLocationBottomSheetRef = useRef<BottomSheet>(null);
-  const saveLocationSnapPoints = useMemo(() => ["1%", "39%"], []);
-  const mapType = taxidoSettingData?.cabbooking_values?.location?.map_provider;
+  const saveLocationSnapPoints = useMemo(() => ['1%', '50%', '85%'], []);
+  // const mapType = taxidomaoTypeSettingData?.taxido_values?.location?.map_provider;
+  const mapType = "osm";
+  const textInputRef = useRef<TextInput>(null);
 
   // Memoize options to prevent re-creation on each render
-  const options = useMemo(
-    () => [
-      { label: translateData.home, value: "home" },
-      { label: translateData.work, value: "work" },
-      { label: translateData.other, value: "other" },
-    ],
-    [translateData.home, translateData.work, translateData.other],
-  );
+  const options = useMemo(() => [
+    { label: translateData.home, value: "home" },
+    { label: translateData.work, value: "work" },
+    { label: translateData.other, value: "other" },
+  ], [translateData.home, translateData.work, translateData.other]);
 
   const validTypes = useMemo(() => options.map(opt => opt.value), [options]);
 
   const [selectedOption, setSelectedOption] = useState(() =>
     validTypes.includes(locationDetails?.type || "")
       ? locationDetails?.type || ""
-      : options[0].value,
+      : options[0].value
   );
 
-  // Memoize map HTML to prevent unnecessary re-renders
-  const mapHtml = useMemo(
-    () => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-      <style>
-        html, body, #map { height: 100%; margin: 0; padding: 0; }
-        ${isDark ? `body { background-color: #000; }` : ""}
-      </style>
-    </head>
-    <body>
-      <div id="map"></div>
-      <script>
-        let map;
-        let debounceTimer;
+  // Memoize map HTML based on map provider
+  const mapHtml = useMemo(() => {
+    if (mapType === "osm") {
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+          <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+          <style>
+            html, body, #map { 
+              height: 100%; 
+              margin: 0; 
+              padding: 0; 
+              overflow: hidden;
+            }
+            ${isDark ? `
+              body { 
+                background-color: #000; 
+              }
+              .leaflet-layer {
+                filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+              }
+            ` : ''}
+          </style>
+        </head>
+        <body>
+          <div id="map"></div>
+          <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+          <script>
+            let map;
+            let debounceTimer;
 
-        function initMap() {
-          const initialCoords = { lat: ${initialLat}, lng: ${initialLng} };
-          map = new google.maps.Map(document.getElementById('map'), {
-            center: initialCoords,
-            zoom: 15,
-            styles: ${isDark ? JSON.stringify(darkMapStyle) : "[]"},
-            disableDefaultUI: true
-          });
+            function initMap() {
+              const initialCoords = [${latitude || 21.1702}, ${longitude || 72.8311}];
 
-          map.addListener('center_changed', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              const center = map.getCenter();
-              window.ReactNativeWebView.postMessage(JSON.stringify({ latitude: center.lat(), longitude: center.lng() }));
-            }, 500);
-          });
+              map = L.map('map', {
+                center: initialCoords,
+                zoom: 15,
+                zoomControl: false,
+                attributionControl: false
+              });
 
-         // Initial position post
-          window.ReactNativeWebView.postMessage(JSON.stringify({ latitude: initialCoords.lat, longitude: initialCoords.lng }));
-        }
-      </script>
-      <script async defer src="https://maps.googleapis.com/maps/api/js?key=${Google_Map_Key}&callback=initMap"></script>
-    </body>
-    </html>
-  `,
-    [latitude, longitude, Google_Map_Key, isDark],
-  );
+              // Add tile layer based on theme
+              const tileUrl = ${isDark ? 
+                '"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"' : 
+                '"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"'
+              };
+              
+              L.tileLayer(tileUrl, {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              }).addTo(map);
 
-  const OsmapHtml = useMemo(
-    () => `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <style>
-      html, body, #map { height: 100%; margin: 0; padding: 0; }
-      ${isDark ? `body { background-color: #000; }` : ""}
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-      let map;
-      let debounceTimer;
+              // Listen to map move (no marker added for OSM)
+              map.on('move', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                  const center = map.getCenter();
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                    latitude: center.lat, 
+                    longitude: center.lng 
+                  }));
+                }, 500);
+              });
 
-      function initMap() {
-        const initialCoords = [${initialLat}, ${initialLng}];
+              // Initial position post
+              window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                latitude: initialCoords[0], 
+                longitude: initialCoords[1] 
+              }));
+            }
 
-        map = L.map('map', {
-          center: initialCoords,
-          zoom: 15,
-          zoomControl: false
-        });
+            // Initialize map when DOM is loaded
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initMap);
+            } else {
+              initMap();
+            }
+          </script>
+        </body>
+        </html>
+      `;
+    } else {
+      // Google Maps
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+          <style>
+            html, body, #map { 
+              height: 100%; 
+              margin: 0; 
+              padding: 0; 
+              overflow: hidden;
+            }
+            ${isDark ? `body { background-color: #000; }` : ''}
+          </style>
+        </head>
+        <body>
+          <div id="map"></div>
+          <script>
+            let map;
+            let debounceTimer;
+            let currentMarker;
 
-        // Tile layer (OpenStreetMap standard)
-        const tileLayer = L.tileLayer(
-          ${isDark
-        ? "'https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}{r}.png'"
-        : "'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"
-      }, 
-          {
-            attribution: '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors'
-          }
-        ).addTo(map);
+            function initMap() {
+              const initialCoords = { lat: ${latitude || 21.1702}, lng: ${longitude || 72.8311} };
+              
+              map = new google.maps.Map(document.getElementById('map'), {
+                center: initialCoords,
+                zoom: 15,
+                styles: ${isDark ? JSON.stringify(darkMapStyle) : '[]'},
+                disableDefaultUI: true,
+                gestureHandling: "greedy"
+              });
 
-        // Listen to map move
-        map.on('moveend', () => {
-          clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            const center = map.getCenter();
-            window.ReactNativeWebView.postMessage(JSON.stringify({ latitude: center.lat, longitude: center.lng }));
-          }, 500);
-        });
+              // Add marker at center
+              currentMarker = new google.maps.Marker({
+                position: initialCoords,
+                map: map,
+                animation: google.maps.Animation.DROP
+              });
 
-        // Initial position post
-        window.ReactNativeWebView.postMessage(JSON.stringify({ latitude: initialCoords[0], longitude: initialCoords[1] }));
-      }
+              map.addListener('center_changed', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                  const center = map.getCenter();
+                  // Update marker position
+                  if (currentMarker) {
+                    currentMarker.setPosition(center);
+                  }
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                    latitude: center.lat(), 
+                    longitude: center.lng() 
+                  }));
+                }, 500);
+              });
 
-      // Initialize map
-      initMap();
-    </script>
-  </body>
-  </html>
-`,
-    [latitude, longitude, isDark],
-  );
+              // Initial position post
+              window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                latitude: initialCoords.lat, 
+                longitude: initialCoords.lng 
+              }));
+            }
 
-  // Memoize fetchAddress to prevent recreation
-    const fetchAddress = useCallback(async (lat: number, lng: number) => {
+            function handleMapError() {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                error: "Map failed to load",
+                latitude: ${latitude || 21.1702},
+                longitude: ${longitude || 72.8311}
+              }));
+            }
+          </script>
+          <script 
+            async 
+            defer 
+            src="https://maps.googleapis.com/maps/api/js?key=${Google_Map_Key}&callback=initMap"
+            onerror="handleMapError()"
+          ></script>
+        </body>
+        </html>
+      `;
+    }
+  }, [latitude, longitude, Google_Map_Key, isDark, mapType]);
+
+  // Enhanced fetchAddress function that works with both map providers
+  const fetchAddress = useCallback(async (lat: number, lng: number) => {
     setFetchingAddress(true);
     
     try {
@@ -368,34 +369,64 @@ export function LocationSave() {
     }
   }, [Google_Map_Key, mapType]);
 
-  // Optimize useEffect dependencies
+  // Enhanced location initialization
   useEffect(() => {
     if (!isLocationInitialized) {
+      let initialLat: number, initialLng: number;
+      
+      // Priority: Edit mode location > User's current location > Default location
+      if (mode === "edit" && locationDetails?.latitude && locationDetails?.longitude) {
+        initialLat = locationDetails.latitude;
+        initialLng = locationDetails.longitude;
+      } else if (latitude && longitude) {
+        initialLat = latitude;
+        initialLng = longitude;
+      } else {
+        // Default fallback coordinates
+        initialLat = 21.1702;
+        initialLng = 72.8311;
+      }
+      
       setMapCenterCoords({ latitude: initialLat, longitude: initialLng });
       fetchAddress(initialLat, initialLng);
       setIsLocationInitialized(true);
     }
-  }, [initialLat, initialLng, isLocationInitialized, fetchAddress]);
+  }, [latitude, longitude, isLocationInitialized, fetchAddress, mode, locationDetails]);
 
-  const handleWebViewMessage = useCallback(
-    (event: any) => {
-      const coords = JSON.parse(event.nativeEvent.data);
-      setMapCenterCoords(coords);
-      fetchAddress(coords.latitude, coords.longitude);
-    },
-    [fetchAddress],
-  );
+  const handleWebViewMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      
+      // Handle map errors
+      if (data.error) {
+        console.error("Map loading error:", data.error);
+        if (data.latitude && data.longitude) {
+          setMapCenterCoords({ latitude: data.latitude, longitude: data.longitude });
+          fetchAddress(data.latitude, data.longitude);
+        }
+        return;
+      }
+      
+      // Handle coordinates
+      if (data.latitude && data.longitude) {
+        setMapCenterCoords(data);
+        fetchAddress(data.latitude, data.longitude);
+      }
+    } catch (error) {
+      console.error("Error parsing WebView message:", error);
+    }
+  }, [fetchAddress]);
 
   const handleConfirmLocation = useCallback(() => {
     if (!currentAddress || !mapCenterCoords || fetchingAddress) {
       Alert.alert(
-        "Location Not Ready",
-        "Wait for address to load or move map.",
+        translateData.locationNotReady || "Location Not Ready", 
+        translateData.waitForAddress || "Wait for address to load or move map."
       );
       return;
     }
     saveLocationBottomSheetRef.current?.expand();
-  }, [currentAddress, mapCenterCoords, fetchingAddress]);
+  }, [currentAddress, mapCenterCoords, fetchingAddress, translateData]);
 
   const goback = useCallback(() => {
     goBack();
@@ -417,14 +448,11 @@ export function LocationSave() {
       location_coordinates: {
         lat: mapCenterCoords?.latitude,
         lng: mapCenterCoords?.longitude,
-      },
+      }
     } as SaveLocationDataInterface;
 
     // Fix TypeScript error by casting dispatch
-    const action =
-      mode === "edit"
-        ? updateSaveLocation({ data: payload, locationID: locationID || 0 })
-        : addSaveLocation(payload);
+    const action = mode === 'edit' ? updateSaveLocation({ data: payload, locationID: locationID || 0 }) : addSaveLocation(payload);
 
     (dispatch as any)(action)
       .unwrap()
@@ -433,30 +461,17 @@ export function LocationSave() {
         goBack();
       })
       .catch((error: any) => {
-        console.error(
-          `Error ${mode === "edit" ? "updating" : "adding"} location:`,
-          error,
-        );
+        console.error(`Error ${mode === 'edit' ? 'updating' : 'adding'} location:`, error);
         Alert.alert(
-          "Error",
-          `Failed to ${mode === "edit" ? "update" : "add"} location.`,
+          translateData.error || "Error", 
+          `Failed to ${mode === 'edit' ? 'update' : 'add'} location.`
         );
       })
       .finally(() => {
         saveLocationBottomSheetRef.current?.close();
         setsaveLoading(false);
       });
-  }, [
-    locationTitle,
-    currentAddress,
-    selectedOption,
-    mapCenterCoords,
-    mode,
-    locationID,
-    dispatch,
-    goBack,
-    translateData.addressRequired,
-  ]);
+  }, [locationTitle, currentAddress, selectedOption, mapCenterCoords, mode, locationID, dispatch, goBack, translateData]);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -467,156 +482,155 @@ export function LocationSave() {
         pressBehavior="close"
       />
     ),
-    [],
+    []
   );
 
   const handleBottomSheetClose = useCallback(() => {
-    if (mode !== "edit") {
-      setLocationTitle("");
+    if (mode !== 'edit') {
+      setLocationTitle('');
     }
-    setTitleError("");
+    setTitleError('');
+    // Dismiss keyboard when bottom sheet closes
+    textInputRef.current?.blur();
   }, [mode]);
 
+  // Handle bottom sheet changes
+  const handleBottomSheetChange = useCallback((index: number) => {
+    if (index === -1) {
+      handleBottomSheetClose();
+    } else if (index === 2) {
+      // When sheet expands to full height, focus the text input
+      setTimeout(() => {
+        textInputRef.current?.focus();
+      }, 300);
+    }
+  }, [handleBottomSheetClose]);
+
   // Memoize bottom sheet content to prevent unnecessary re-renders
-  const bottomSheetContent = useMemo(
-    () => (
-      <BottomSheetView style={bottomSheetStyles.contentContainer}>
-        <Text style={[styles.title, { color: textColorStyle }]}>
-          {translateData.addNewLocation}
-        </Text>
-        <View style={styles.container}>
-          <View style={[styles.optionContain, { flexDirection: viewRTLStyle }]}>
-            {options.map(option => (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                key={option.value}
-                style={[
-                  [
-                    styles.optionContainer,
-                    { flexDirection: viewRTLStyle },
-                    {
-                      borderColor: isDark
-                        ? appColors.darkBorder
-                        : appColors.border,
-                      backgroundColor: isDark
-                        ? appColors.darkPrimary
-                        : appColors.whiteColor,
-                    },
-                  ],
-                  selectedOption === option.value &&
-                  styles.selectedOptionContainer,
-                ]}
-                onPress={() => setSelectedOption(option.value)}>
-                <View
+  const bottomSheetContent = useMemo(() => (
+    <KeyboardAvoidingView 
+      style={bottomSheetStyles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView 
+        style={bottomSheetStyles.scrollView}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <BottomSheetView style={bottomSheetStyles.contentContainer}>
+          <Text style={[styles.title, { color: textColorStyle }]}>{translateData.addNewLocation}</Text>
+          <View style={styles.container}>
+            <View style={[styles.optionContain, { flexDirection: viewRTLStyle }]}>
+              {options.map((option) => (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  key={option.value}
                   style={[
-                    styles.radioButton,
+                    [styles.optionContainer, { flexDirection: viewRTLStyle }, { borderColor: isDark ? appColors.darkBorder : appColors.border, backgroundColor: isDark ? appColors.darkPrimary : appColors.whiteColor }],
                     selectedOption === option.value &&
-                    styles.selectedOptionRadio,
-                  ]}>
-                  {selectedOption === option.value && (
-                    <View style={styles.radioSelected} />
-                  )}
-                </View>
-                <Text
-                  style={[
-                    styles.optionLabel,
-                    {
-                      color: isDark
-                        ? appColors.whiteColor
-                        : appColors.primaryText,
-                    },
-                    selectedOption === option.value &&
-                    styles.selectedOptionLabel,
-                  ]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text
-            style={{
+                    styles.selectedOptionContainer,
+                  ]}
+                  onPress={() => setSelectedOption(option.value)}
+                >
+                  <View
+                    style={[
+                      styles.radioButton,
+                      selectedOption === option.value &&
+                      styles.selectedOptionRadio,
+                    ]}
+                  >
+                    {selectedOption === option.value && (
+                      <View style={styles.radioSelected} />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.optionLabel, { color: isDark ? appColors.whiteColor : appColors.primaryText },
+                      selectedOption === option.value &&
+                      styles.selectedOptionLabel,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={{
               color: isDark ? appColors.whiteColor : appColors.primaryText,
               fontFamily: appFonts.medium,
               marginTop: windowHeight(8),
               textAlign: textRTLStyle,
             }}>
-            {translateData.addressTitle}
-          </Text>
-          <BottomSheetTextInput
-            placeholder={translateData.enterYouTitleeeee}
-            placeholderTextColor={appColors.regularText}
-            style={[
-              styles.titleInput,
-              { color: textColorStyle },
-              { borderColor: isDark ? appColors.darkBorder : appColors.border },
-              { textAlign: textRTLStyle },
-            ]}
-            value={locationTitle}
-            onChangeText={text => {
-              setLocationTitle(text);
-              if (!text.trim()) {
-                setTitleError(
-                  translateData.addressRequired || "Title is required",
-                );
-              } else {
-                setTitleError("");
-              }
-            }}
-          />
-
-          {titleError ? (
-            <Text
-              style={{
-                color: appColors.textRed,
-                fontSize: fontSizes.FONT14SMALL,
-                fontFamily: appFonts.medium,
-              }}>
-              {titleError}
+              {translateData.addressTitle}
             </Text>
-          ) : null}
-        </View>
-        <View style={[styles.btnContainer, { flexDirection: viewRTLStyle }]}>
-          <Button
-            backgroundColor={appColors.lightButton}
-            onPress={() => saveLocationBottomSheetRef.current?.close()}
-            textColor={appColors.primary}
-            title={translateData.cancel}
-            width={"48%"}
-          />
-          <Button
-            backgroundColor={appColors.primary}
-            onPress={addAddress}
-            textColor={appColors.whiteColor}
-            title={translateData.save}
-            width={"48%"}
-            loading={saveLoading}
-          />
-        </View>
-      </BottomSheetView>
-    ),
-    [
-      textColorStyle,
-      translateData.addNewLocation,
-      translateData.addressTitle,
-      translateData.enterYouTitleeeee,
-      translateData.cancel,
-      translateData.save,
-      viewRTLStyle,
-      options,
-      selectedOption,
-      isDark,
-      locationTitle,
-      titleError,
-      saveLoading,
-      addAddress,
-      textRTLStyle,
-      translateData.addressRequired,
-    ],
-  );
+            <TextInput
+              ref={textInputRef}
+              placeholder={translateData.enterYouTitleeeee}
+              placeholderTextColor={appColors.regularText}
+              style={[
+                styles.titleInput,
+                { color: textColorStyle },
+                { borderColor: isDark ? appColors.darkBorder : appColors.border }, 
+                { textAlign: textRTLStyle },
+              ]}
+              value={locationTitle}
+              onChangeText={(text) => {
+                setLocationTitle(text);
+                if (!text.trim()) {
+                  setTitleError(translateData.addressRequired || "Title is required");
+                } else {
+                  setTitleError('');
+                }
+              }}
+              returnKeyType="done"
+              blurOnSubmit={true}
+            />
+
+            {titleError ? (
+              <Text style={{ 
+                color: appColors.textRed, 
+                fontSize: fontSizes.FONT14SMALL, 
+                fontFamily: appFonts.medium,
+                marginTop: 5 
+              }}>
+                {titleError}
+              </Text>
+            ) : null}
+
+          </View>
+          <View style={[styles.btnContainer, { flexDirection: viewRTLStyle, marginTop: windowHeight(20) }]}>
+            <Button
+              backgroundColor={appColors.lightButton}
+              onPress={() => saveLocationBottomSheetRef.current?.close()}
+              textColor={appColors.primary}
+              title={translateData.cancel}
+              width={'48%'}
+            />
+            <Button
+              backgroundColor={appColors.primary}
+              onPress={addAddress}
+              textColor={appColors.whiteColor}
+              title={translateData.save}
+              width={'48%'}
+              loading={saveLoading}
+            />
+          </View>
+        </BottomSheetView>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  ), [textColorStyle, translateData, viewRTLStyle, options, selectedOption, isDark, locationTitle,
+    titleError, saveLoading, addAddress, textRTLStyle]);
+
+  // Handle WebView errors
+  const handleWebViewError = useCallback((syntheticEvent: any) => {
+    const { nativeEvent } = syntheticEvent;
+    console.error('WebView error:', nativeEvent);
+  }, []);
 
   return (
     <View style={external.main}>
-      <View style={{ flexDirection: "row" }}>
+      <View style={{ flexDirection: 'row' }}>
         <BackButton onPress={goback} linearColorStyle={linearColorStyle} />
         <AddressInput
           fetchingAddress={fetchingAddress}
@@ -632,33 +646,33 @@ export function LocationSave() {
       </View>
       <View style={styles.mapView}>
         {loadingMap && (
-          <ActivityIndicator
-            style={StyleSheet.absoluteFill}
-            size="large"
-            color={appColors.primary}
-          />
+          <ActivityIndicator style={StyleSheet.absoluteFill} size="large" color={appColors.primary} />
         )}
         <WebView
           ref={webViewRef}
-          source={{ html: mapType ? mapHtml : OsmapHtml }}
+          source={{ html: mapHtml }}
           onLoadEnd={() => setLoadingMap(false)}
           onMessage={handleWebViewMessage}
+          onError={handleWebViewError}
           style={{ flex: 1 }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           startInLoadingState={true}
-          renderLoading={() => (
-            <ActivityIndicator
-              style={StyleSheet.absoluteFill}
-              size="large"
-              color={appColors.primary}
-            />
-          )}
+          renderLoading={() => <ActivityIndicator style={StyleSheet.absoluteFill} size="large" color={appColors.primary} />}
           scrollEnabled={false}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
+          mixedContentMode="compatibility"
+          onHttpError={(syntheticEvent) => {
+            const { nativeEvent } = syntheticEvent;
+            console.warn('WebView HTTP error:', nativeEvent);
+          }}
         />
       </View>
+      
+      {/* Show pin marker for both map types since OSM no longer has built-in marker */}
+      <PinMarker pinImage={Images.pin} />
+      
       <ConfirmButton
         onPress={handleConfirmLocation}
         fetchingAddress={fetchingAddress}
@@ -666,7 +680,6 @@ export function LocationSave() {
         translateData={translateData}
         whiteColor={appColors.whiteColor}
       />
-      <PinMarker pinImage={Images.pin} />
 
       <BottomSheet
         ref={saveLocationBottomSheetRef}
@@ -674,18 +687,13 @@ export function LocationSave() {
         snapPoints={saveLocationSnapPoints}
         enablePanDownToClose={true}
         backdropComponent={renderBackdrop}
-        keyboardBlurBehavior="restore"
-        onChange={index => {
-          if (index === -1) {
-            handleBottomSheetClose();
-          }
-        }}
+        onChange={handleBottomSheetChange}
         style={{ zIndex: 5 }}
-        handleIndicatorStyle={{
-          backgroundColor: appColors.primary,
-          width: "13%",
-        }}
-        backgroundStyle={{ backgroundColor: bgFullStyle }}>
+        handleIndicatorStyle={{ backgroundColor: appColors.primary, width: '13%' }}
+        backgroundStyle={{ backgroundColor: bgFullStyle }}
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+      >
         {bottomSheetContent}
       </BottomSheet>
     </View>
@@ -693,13 +701,20 @@ export function LocationSave() {
 }
 
 const bottomSheetStyles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
   contentContainer: {
     flex: 1,
     paddingHorizontal: windowWidth(18),
     paddingTop: windowHeight(15),
+    paddingBottom: windowHeight(20),
   },
   closeButton: {
-    position: "absolute",
+    position: 'absolute',
     right: windowWidth(5),
     top: windowHeight(2),
     zIndex: 10,
