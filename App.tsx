@@ -27,23 +27,20 @@ const AppContent = () => {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView
-        style={{
-          flex: 1,
-          backgroundColor: isDark ? appColors.darkHeader : appColors.whiteColor,
-        }}
-        edges={["top", "left", "right"]}
-      >
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? appColors.primary : appColors.primary }} edges={['top', 'left', 'right']}>
         <StatusBar
-          barStyle={isDark ? "light-content" : "dark-content"}
-          backgroundColor={isDark ? appColors.darkHeader : appColors.whiteColor}
+          barStyle={isDark ? 'light-content' : 'light-content'}
+          backgroundColor={isDark ? appColors.primary : appColors.primary}
         />
+        
+       
         <MyStack />
-        <GPSStatusMonitor checkInterval={3000} />
+       <GPSStatusMonitor checkInterval={3000} />
       </SafeAreaView>
     </SafeAreaProvider>
   );
 };
+
 
 function App(): React.JSX.Element {
   React.useEffect(() => {
