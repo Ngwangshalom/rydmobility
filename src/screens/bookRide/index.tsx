@@ -850,16 +850,21 @@ export function BookRide() {
     const geocodeAddress = async (address: string) => {
       try {
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            address,
-          )}&key=${Google_Map_Key}`,
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`,
+          {
+            headers: {
+              'User-Agent': 'Ryd/1.0 (your@email.com)', // Required by Nominatim
+              'Accept': 'application/json',
+            }
+          }
         );
+        
         const dataMap = await response.json();
-        if (dataMap.results?.length > 0) {
-          const location = dataMap.results[0].geometry.location;
+        if (dataMap.length > 0) {
+          const location = dataMap[0];
           return {
-            lat: location.lat,
-            lng: location.lng,
+            lat: parseFloat(location.lat),
+            lng: parseFloat(location.lon),
           };
         }
       } catch (error) {

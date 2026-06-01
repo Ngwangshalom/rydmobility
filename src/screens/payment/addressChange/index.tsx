@@ -1,14 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
-import { WebView } from "react-native-webview";
+import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert } from "react-native";
+import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Back, AddressMarker } from "@src/utils/icons";
 import { appColors, appFonts, fontSizes, windowHeight } from "@src/themes";
@@ -20,288 +12,252 @@ import { useDispatch, useSelector } from "react-redux";
 import useSmartLocation from "@src/components/helper/locationHelper";
 import { locationChanges, rideDataPut } from "@src/api/store/actions";
 import { AppDispatch } from "@src/api/store";
-import {
-  BottomSheetModal,
-  BottomSheetView,
-  BottomSheetModalProvider,
-} from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetView, BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 export function AddressChange() {
-  const { isDark, viewRTLStyle, Google_Map_Key } = useValues();
-  const dispatch = useDispatch<AppDispatch>();
-  const webViewRef = useRef<WebView>(null);
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { rideId, rideDatas, locationIndex } =
-    (route.params as { rideId: string; rideDatas: any; locationIndex: number }) ||
-    {};
-  const { currentLatitude, currentLongitude } = useSmartLocation();
-  const [initialCoords, setInitialCoords] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [mapCenterCoords, setMapCenterCoords] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [currentAddress, setCurrentAddress] = useState("");
-  const [loadingMap, setLoadingMap] = useState(true);
-  const [fetchingAddress, setFetchingAddress] = useState(false);
-  const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
-  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-  const [priceData, setPriceData] = useState<any>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const { translateData, taxidoSettingData } = useSelector(
-    (state: any) => state.setting,
-  );
-  const mapType = taxidoSettingData?.cabbooking_values?.location?.map_provider;
+    const { isDark, viewRTLStyle, Google_Map_Key } = useValues();
+    const dispatch = useDispatch<AppDispatch>();
+    const webViewRef = useRef<WebView>(null);
+    const navigation = useNavigation();
+    const route = useRoute();
+    const { rideId, rideDatas, locationIndex } = route.params as { rideId: string; rideDatas: any; locationIndex: number } || {};
+    const { currentLatitude, currentLongitude } = useSmartLocation();
+    const [initialCoords, setInitialCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [mapCenterCoords, setMapCenterCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [currentAddress, setCurrentAddress] = useState("");
+    const [loadingMap, setLoadingMap] = useState(true);
+    const [fetchingAddress, setFetchingAddress] = useState(false);
+    const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+    const [priceData, setPriceData] = useState<any>(null);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const { translateData, taxidoSettingData } = useSelector((state: any) => state.setting);
+    const mapType = taxidoSettingData?.taxido_values?.location?.map_provider;
 
-  // Bottom sheet ref
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
-  const snapPoints = ["25%"];
 
-  useEffect(() => {
-    if (rideDatas?.location_coordinates?.[locationIndex]) {
-      const editingLocation = rideDatas.location_coordinates[locationIndex];
-      const coords = {
-        latitude: parseFloat(editingLocation.lat),
-        longitude: parseFloat(editingLocation.lng),
-      };
-      setInitialCoords(coords);
-      setMapCenterCoords(coords);
-      setLoadingMap(false);
-    } else if (currentLatitude && currentLongitude) {
-      const coords = { latitude: currentLatitude, longitude: currentLongitude };
-      setInitialCoords(coords);
-      setMapCenterCoords(coords);
-      setLoadingMap(false);
-    } else {
-      console.warn("No initial location found.");
-      setLoadingMap(false);
-    }
-  }, [rideDatas, locationIndex, currentLatitude, currentLongitude]);
 
-  const fetchAddress = useCallback(
-    async (lat: number, lng: number) => {
-      if (!Google_Map_Key) {
-        console.error("[fetchAddress] Google Maps API Key is missing!");
-        setCurrentAddress("Configuration error: Missing API Key.");
-        return;
-      }
+    // Bottom sheet ref
+    const bottomSheetRef = useRef<BottomSheetModal>(null);
+    const snapPoints = ['25%'];
 
-      setFetchingAddress(true);
-      try {
+    useEffect(() => {
+        if (rideDatas?.location_coordinates?.[locationIndex]) {
+            const editingLocation = rideDatas.location_coordinates[locationIndex];
+            const coords = {
+                latitude: parseFloat(editingLocation.lat),
+                longitude: parseFloat(editingLocation.lng)
+            };
+            setInitialCoords(coords);
+            setMapCenterCoords(coords);
+            setLoadingMap(false);
+        } else if (currentLatitude && currentLongitude) {
+            const coords = { latitude: currentLatitude, longitude: currentLongitude };
+            setInitialCoords(coords);
+            setMapCenterCoords(coords);
+            setLoadingMap(false);
+        } else {
+            console.warn("No initial location found.");
+            setLoadingMap(false);
+        }
+    }, [rideDatas, locationIndex, currentLatitude, currentLongitude]);
+
+   const fetchAddress = useCallback(async (lat: number, lng: number) => {
+    setFetchingAddress(true);
+    try {
+        // Use OSM Nominatim for reverse geocoding
         let response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}&result_type=street_address|route|intersection`,
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+            {
+                headers: {
+                    'User-Agent': 'RYD/1.0',
+                    'Accept-Language': 'en'
+                }
+            }
         );
         let json = await response.json();
 
-        if (json.status === "OK" && json.results?.length === 0) {
-          response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}`,
-          );
-          json = await response.json();
-        }
-
-        if (json.status === "OK" && json.results?.length > 0) {
-          const bestResult = json.results[0];
-          const cleanedAddress = bestResult?.formatted_address;
-          setCurrentAddress(cleanedAddress);
+        if (json && json.display_name) {
+            const cleanedAddress = json.display_name;
+            setCurrentAddress(cleanedAddress);
         } else {
-          setCurrentAddress("Could not find address for this location.");
+            // Fallback: try without addressdetails if first attempt fails
+            response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                {
+                    headers: {
+                        'User-Agent': 'RYD/1.0',
+                        'Accept-Language': 'en'
+                    }
+                }
+            );
+            json = await response.json();
+            
+            if (json && json.display_name) {
+                setCurrentAddress(json.display_name);
+            } else {
+                setCurrentAddress("Could not find address for this location.");
+            }
         }
-      } catch (error) {
+
+    } catch (error) {
+        console.error("[fetchAddress] Failed to fetch address from OSM:", error);
         setCurrentAddress("Failed to connect to address service.");
-      } finally {
+    } finally {
         setFetchingAddress(false);
-      }
-    },
-    [Google_Map_Key],
-  );
-
-  useEffect(() => {
-    if (mapCenterCoords) {
-      if (debounceTimerRef?.current) clearTimeout(debounceTimerRef?.current);
-
-      debounceTimerRef.current = setTimeout(() => {
-        fetchAddress(mapCenterCoords?.latitude, mapCenterCoords?.longitude);
-      }, 800);
     }
-    return () => {
-      if (debounceTimerRef?.current) clearTimeout(debounceTimerRef?.current);
+}, []);
+
+    useEffect(() => {
+        if (mapCenterCoords) {
+            if (debounceTimerRef?.current) clearTimeout(debounceTimerRef?.current);
+
+            debounceTimerRef.current = setTimeout(() => {
+                fetchAddress(mapCenterCoords?.latitude, mapCenterCoords?.longitude);
+            }, 800);
+        }
+        return () => {
+            if (debounceTimerRef?.current) clearTimeout(debounceTimerRef?.current);
+        };
+    }, [mapCenterCoords, fetchAddress]);
+
+    const handleWebViewMessage = (event: any) => {
+        const data = JSON.parse(event?.nativeEvent?.data);
+        if (data?.type === 'mapMove') {
+            const { lat, lng } = data?.payload;
+            setMapCenterCoords({ latitude: lat, longitude: lng });
+        }
     };
-  }, [mapCenterCoords, fetchAddress]);
 
-  const handleWebViewMessage = (event: any) => {
-    const data = JSON.parse(event?.nativeEvent?.data);
+    const handleLocationChange = () => {
+        if (isUpdatingLocation || !currentAddress || !mapCenterCoords || fetchingAddress) {
+            Alert.alert(
+                translateData.locationNotReady,
+                translateData.locationDescription
+            );
+            return;
+        }
 
-    if (data?.type === "mapMove") {
-      // 🔽 If bottom sheet is open → close it automatically
-      if (isBottomSheetOpen) {
+        const currentCoords = [...rideDatas.location_coordinates];
+        const currentLocations = [...rideDatas.locations];
+
+        // Validate locationIndex
+        if (locationIndex === undefined || locationIndex < 0 || locationIndex >= currentCoords.length) {
+            throw new Error(`Invalid location index: ${locationIndex}`);
+        }
+
+        // Directly replace the location at the specified index
+        currentCoords[locationIndex] = {
+            lat: mapCenterCoords.latitude.toString(),
+            lng: mapCenterCoords.longitude.toString()
+        };
+        currentLocations[locationIndex] = currentAddress;
+
+        const payload: any = {
+            ride_id: rideId,
+            location_coordinates: currentCoords,
+            locations: currentLocations,
+        };
+        dispatch(locationChanges(payload))
+            .unwrap()
+            .then((res: any) => {
+                setPriceData(res);
+                // Open bottom sheet after locationChanges is successful
+                setIsBottomSheetOpen(true);
+                bottomSheetRef.current?.present();
+            })
+            .catch((error: any) => {
+                setIsUpdatingLocation(false);
+                Alert.alert(
+                    translateData.updateFailed,
+                    `Failed to update location: ${error?.message || 'Unknown error'}. Please try again.`
+                );
+            });
+    };
+
+    const processLocationChange = async () => {
+        // Close the bottom sheet
         setIsBottomSheetOpen(false);
         bottomSheetRef.current?.close();
-        return;
-      }
 
-      const { lat, lng } = data.payload;
-      setMapCenterCoords({ latitude: lat, longitude: lng });
-    }
-  };
+        // Set updating state to prevent multiple clicks
+        setIsUpdatingLocation(true);
 
-  const handleLocationChange = () => {
-    if (
-      isUpdatingLocation ||
-      !currentAddress ||
-      !mapCenterCoords ||
-      fetchingAddress
-    ) {
-      Alert.alert(
-        translateData.locationNotReady,
-        translateData.locationDescription,
-      );
-      return;
-    }
+        try {
+            // Validate inputs
+            if (!rideId) {
+                throw new Error('Ride ID is missing');
+            }
 
-    const currentCoords = [...rideDatas.location_coordinates];
-    const currentLocations = [...rideDatas.locations];
+            if (!rideDatas || !rideDatas.location_coordinates || !rideDatas.locations) {
+                throw new Error('Ride data is invalid or missing');
+            }
 
-    // Validate locationIndex
-    if (
-      locationIndex === undefined ||
-      locationIndex < 0 ||
-      locationIndex >= currentCoords?.length
-    ) {
-      throw new Error(`Invalid location index: ${locationIndex}`);
-    }
+            // Get current arrays from rideDatas
+            const currentCoords = [...rideDatas.location_coordinates];
+            const currentLocations = [...rideDatas.locations];
 
-    // Directly replace the location at the specified index
-    currentCoords[locationIndex] = {
-      lat: mapCenterCoords.latitude.toString(),
-      lng: mapCenterCoords.longitude.toString(),
+            // Validate locationIndex
+            if (locationIndex === undefined || locationIndex < 0 || locationIndex >= currentCoords.length) {
+                throw new Error(`Invalid location index: ${locationIndex}`);
+            }
+
+            // Directly replace the location at the specified index
+            // Add null check for mapCenterCoords
+            if (!mapCenterCoords) {
+                throw new Error('Map center coordinates are not available');
+            }
+
+            currentCoords[locationIndex] = {
+                lat: mapCenterCoords.latitude.toString(),
+                lng: mapCenterCoords.longitude.toString()
+            };
+            currentLocations[locationIndex] = currentAddress;
+
+            const payload: any = {
+                location_coordinates: currentCoords,
+                locations: currentLocations
+            };
+
+            const ride_id = parseInt(rideId.toString());
+
+            // Dispatch Redux action to update ride data
+            dispatch(rideDataPut({ payload, ride_id }))
+                .unwrap()
+                .then((_res: any) => {
+                    navigation.goBack();
+                })
+                .catch((error: any) => {
+                    setIsUpdatingLocation(false);
+                    Alert.alert(
+                        translateData.updateFailed,
+                        `Failed to update location: ${error?.message || 'Unknown error'}. Please try again.`
+                    );
+                });
+
+        } catch (error: any) {
+            setIsUpdatingLocation(false);
+            Alert.alert(
+                translateData.updateFailed,
+                `Failed to update location: ${error?.message || 'Unknown error'}. Please try again.`
+            );
+        }
     };
-    currentLocations[locationIndex] = currentAddress;
 
-    const payload: any = {
-      ride_id: rideId,
-      location_coordinates: currentCoords,
-      locations: currentLocations,
+    const handleSheetChanges = (index: number) => {
+        // When sheet is closed (index = -1), show the button
+        // When sheet is open (index >= 0), hide the button
+        setIsBottomSheetOpen(index !== -1);
     };
 
-    dispatch(locationChanges(payload))
-      .unwrap()
-      .then((res: any) => {
-        setPriceData(res);
-        setIsBottomSheetOpen(true);
-        bottomSheetRef.current?.present();
-      })
-      .catch((error: any) => {
-        setIsUpdatingLocation(false);
-        Alert.alert(
-          translateData.updateFailed,
-          `Failed to update location: ${error?.message || "Unknown error"
-          }. Please try again.`,
-        );
-      });
-  };
+    const getMapHTML = (coords: { latitude: number; longitude: number }, mapType: string, isDark: boolean) => {
+        // Use the isDark value from component context
 
-  const processLocationChange = async () => {
-    // Close the bottom sheet
-    setIsBottomSheetOpen(false);
-    bottomSheetRef.current?.close();
+        if (mapType === 'osm') {
+            const darkTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+            const lightTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+            const tileUrl = isDark ? darkTileUrl : lightTileUrl;
 
-    // Set updating state to prevent multiple clicks
-    setIsUpdatingLocation(true);
-
-    try {
-      // Validate inputs
-      if (!rideId) {
-        throw new Error("Ride ID is missing");
-      }
-
-      if (
-        !rideDatas ||
-        !rideDatas.location_coordinates ||
-        !rideDatas.locations
-      ) {
-        throw new Error("Ride data is invalid or missing");
-      }
-
-      // Get current arrays from rideDatas
-      const currentCoords = [...rideDatas.location_coordinates];
-      const currentLocations = [...rideDatas.locations];
-
-      // Validate locationIndex
-      if (
-        locationIndex === undefined ||
-        locationIndex < 0 ||
-        locationIndex >= currentCoords?.length
-      ) {
-        throw new Error(`Invalid location index: ${locationIndex}`);
-      }
-
-      // Directly replace the location at the specified index
-      // Add null check for mapCenterCoords
-      if (!mapCenterCoords) {
-        throw new Error("Map center coordinates are not available");
-      }
-
-      currentCoords[locationIndex] = {
-        lat: mapCenterCoords.latitude.toString(),
-        lng: mapCenterCoords.longitude.toString(),
-      };
-      currentLocations[locationIndex] = currentAddress;
-
-      const payload: any = {
-        location_coordinates: currentCoords,
-        locations: currentLocations,
-      };
-
-      const ride_id = parseInt(rideId.toString());
-
-      // Dispatch Redux action to update ride data
-      dispatch(rideDataPut({ payload, ride_id }))
-        .unwrap()
-        .then((_res: any) => {
-          navigation.goBack();
-        })
-        .catch((error: any) => {
-          setIsUpdatingLocation(false);
-          Alert.alert(
-            translateData.updateFailed,
-            `Failed to update location: ${error?.message || "Unknown error"
-            }. Please try again.`,
-          );
-        });
-    } catch (error: any) {
-      setIsUpdatingLocation(false);
-      Alert.alert(
-        translateData.updateFailed,
-        `Failed to update location: ${error?.message || "Unknown error"
-        }. Please try again.`,
-      );
-    }
-  };
-
-  const handleSheetChanges = (index: number) => {
-    // When sheet is closed (index = -1), show the button
-    // When sheet is open (index >= 0), hide the button
-    setIsBottomSheetOpen(index !== -1);
-  };
-
-  const getMapHTML = (
-    coords: { latitude: number; longitude: number },
-    mapType: string,
-    isDark: boolean,
-  ) => {
-    // Use the isDark value from component context
-
-    if (mapType === "osm") {
-      const darkTileUrl =
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-      const lightTileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-      const tileUrl = isDark ? darkTileUrl : lightTileUrl;
-
-      return `
+            return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -313,8 +269,7 @@ export function AddressChange() {
               padding: 0;
               height: 100%;
               width: 100%;
-              background-color: ${isDark ? appColors.blackColor : appColors.whiteColor
-        };
+              background-color: ${isDark ? appColors.blackColor : appColors.whiteColor};
             }
           </style>
       </head>
@@ -347,58 +302,58 @@ export function AddressChange() {
       </body>
       </html>
     `;
-    }
+        }
 
-    // Google Maps implementation (existing code)
-    const darkTheme = [
-      { elementType: "geometry", stylers: [{ color: "#212121" }] },
-      { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-      { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-      {
-        featureType: "administrative",
-        elementType: "geometry",
-        stylers: [{ color: "#757575" }],
-      },
-      {
-        featureType: "poi",
-        elementType: "geometry",
-        stylers: [{ color: "#282828" }],
-      },
-      {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#181818" }],
-      },
-      {
-        featureType: "road",
-        elementType: "geometry.fill",
-        stylers: [{ color: "#2c2c2c" }],
-      },
-      {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#8a8a8a" }],
-      },
-      {
-        featureType: "transit",
-        elementType: "geometry",
-        stylers: [{ color: "#2f2f2f" }],
-      },
-      {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#000000" }],
-      },
-      {
-        featureType: "water",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3d3d3d" }],
-      },
-    ];
+        // Google Maps implementation (existing code)
+        const darkTheme = [
+            { elementType: "geometry", stylers: [{ color: "#212121" }] },
+            { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+            {
+                featureType: "administrative",
+                elementType: "geometry",
+                stylers: [{ color: "#757575" }]
+            },
+            {
+                featureType: "poi",
+                elementType: "geometry",
+                stylers: [{ color: "#282828" }]
+            },
+            {
+                featureType: "poi.park",
+                elementType: "geometry",
+                stylers: [{ color: "#181818" }]
+            },
+            {
+                featureType: "road",
+                elementType: "geometry.fill",
+                stylers: [{ color: "#2c2c2c" }]
+            },
+            {
+                featureType: "road",
+                elementType: "labels.text.fill",
+                stylers: [{ color: "#8a8a8a" }]
+            },
+            {
+                featureType: "transit",
+                elementType: "geometry",
+                stylers: [{ color: "#2f2f2f" }]
+            },
+            {
+                featureType: "water",
+                elementType: "geometry",
+                stylers: [{ color: "#000000" }]
+            },
+            {
+                featureType: "water",
+                elementType: "labels.text.fill",
+                stylers: [{ color: "#3d3d3d" }]
+            }
+        ];
 
-    const mapThemeStyles = isDark ? darkTheme : [];
-    return `
+        const mapThemeStyles = isDark ? darkTheme : [];
+        return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -409,8 +364,7 @@ export function AddressChange() {
             padding: 0;
             height: 100%;
             width: 100%;
-            background-color: ${isDark ? appColors.blackColor : appColors.whiteColor
-      };
+            background-color: ${isDark ? appColors.blackColor : appColors.whiteColor};
           }
         </style>
     </head>
@@ -419,8 +373,7 @@ export function AddressChange() {
         <script>
             function initMap() {
                 const map = new google.maps.Map(document.getElementById('map'), {
-                    center: { lat: ${coords?.latitude}, lng: ${coords?.longitude
-      } },
+                    center: { lat: ${coords?.latitude}, lng: ${coords?.longitude} },
                     zoom: 16,
                     disableDefaultUI: true,
                     styles: ${JSON.stringify(mapThemeStyles)}
@@ -440,189 +393,137 @@ export function AddressChange() {
     </body>
     </html>
   `;
-  };
+    };
 
-  // Bottom sheet content
-  const bottomSheetContent = (
-    <BottomSheetView style={{ flex: 1, padding: 20 }}>
-      <Text
-        style={{
-          fontSize: fontSizes.FONT19,
-          fontFamily: appFonts.medium,
-          textAlign: "center",
-          marginBottom: windowHeight(20),
-          color: isDark ? appColors.whiteColor : appColors.blackColor,
-        }}>
-        The updated price for your location is{" "}
-        <Text style={{ fontFamily: appFonts.bold, color: appColors.primary }}>
-          {rideDatas?.currency_symbol}
-          {priceData?.total}
-        </Text>
-      </Text>
-
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          marginTop: windowHeight(20),
-        }}>
-        <TouchableOpacity
-          style={{
-            flex: 0.45,
-            padding: windowHeight(12),
-            backgroundColor: isDark
-              ? appColors.darkPrimary
-              : appColors.lightGray,
-            borderRadius: windowHeight(8),
-            alignItems: "center",
-          }}
-          onPress={() => {
-            setIsBottomSheetOpen(false);
-            bottomSheetRef.current?.close();
-          }}>
-          <Text
-            style={{
-              color: isDark ? appColors.whiteColor : appColors.blackColor,
-              fontFamily: appFonts.medium,
+    // Bottom sheet content
+    const bottomSheetContent = (
+        <BottomSheetView style={{ flex: 1, padding: 20 }}>
+            <Text style={{
+                fontSize: fontSizes.FONT19,
+                fontFamily: appFonts.medium,
+                textAlign: 'center',
+                marginBottom: windowHeight(20),
+                color: isDark ? appColors.whiteColor : appColors.blackColor
             }}>
-            {translateData.cancel}
-          </Text>
-        </TouchableOpacity>
+                The updated price for your location is <Text style={{ fontFamily: appFonts.bold, color: appColors.primary }}>{rideDatas?.currency_symbol}{priceData?.total}</Text>
+            </Text>
 
-        <TouchableOpacity
-          style={{
-            flex: 0.45,
-            padding: windowHeight(12),
-            backgroundColor: appColors.primary,
-            borderRadius: windowHeight(8),
-            alignItems: "center",
-          }}
-          onPress={processLocationChange}>
-          <Text
-            style={{
-              color: appColors.whiteColor,
-              fontFamily: appFonts.medium,
-            }}>
-            {translateData.confirm}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </BottomSheetView>
-  );
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: windowHeight(20) }}>
+                <TouchableOpacity
+                    style={{
+                        flex: 0.45,
+                        padding: windowHeight(12),
+                        backgroundColor: isDark ? appColors.darkPrimary : appColors.lightGray,
+                        borderRadius: windowHeight(8),
+                        alignItems: 'center'
+                    }}
+                    onPress={() => {
+                        setIsBottomSheetOpen(false);
+                        bottomSheetRef.current?.close();
+                    }}
+                >
+                    <Text style={{
+                        color: isDark ? appColors.whiteColor : appColors.blackColor,
+                        fontFamily: appFonts.medium
+                    }}>
+                        {translateData.cancel}
+                    </Text>
+                </TouchableOpacity>
 
-  return (
-    <BottomSheetModalProvider>
-      <View style={external.main}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={[
-            styles.backView,
-            {
-              backgroundColor: isDark
-                ? appColors.darkPrimary
-                : appColors.whiteColor,
-            },
-          ]}>
-          <Back />
-        </TouchableOpacity>
-
-        {loadingMap ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={appColors.primary} />
-          </View>
-        ) : initialCoords ? (
-          <>
-            <WebView
-              ref={webViewRef}
-              style={styles.mapView}
-              source={{ html: getMapHTML(initialCoords, mapType, isDark) }}
-              onMessage={handleWebViewMessage}
-              javaScriptEnabled
-              domStorageEnabled
-              originWhitelist={["*"]}
-            />
-            <View style={styles.pointerMarker} pointerEvents="none">
-              <Image source={Images.pin} style={styles.pinImage} />
+                <TouchableOpacity
+                    style={{
+                        flex: 0.45,
+                        padding: windowHeight(12),
+                        backgroundColor: appColors.primary,
+                        borderRadius: windowHeight(8),
+                        alignItems: 'center'
+                    }}
+                    onPress={processLocationChange}
+                >
+                    <Text style={{
+                        color: appColors.whiteColor,
+                        fontFamily: appFonts.medium
+                    }}>
+                        {translateData.confirm}
+                    </Text>
+                </TouchableOpacity>
             </View>
-          </>
-        ) : (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={appColors.primary} />
-          </View>
-        )}
+        </BottomSheetView>
+    );
 
-        <View
-          style={[
-            styles.textInputContainer,
-            {
-              backgroundColor: isDark
-                ? appColors.darkPrimary
-                : appColors.whiteColor,
-              flexDirection: viewRTLStyle,
-            },
-          ]}>
-          <View
-            style={[
-              styles.addressBtnView,
-              {
-                backgroundColor: isDark
-                  ? appColors.bgDark
-                  : appColors.lightGray,
-              },
-            ]}>
-            <AddressMarker />
-          </View>
-          <TextInput
-            style={[
-              styles.textInput,
-              { color: isDark ? appColors.whiteColor : appColors.blackColor },
-            ]}
-            value={
-              fetchingAddress
-                ? translateData.locating
-                : currentAddress || translateData.moveToLocate
-            }
-            editable={false}
-            multiline
-          />
-        </View>
+    return (
+        <BottomSheetModalProvider>
+            <View style={external.main}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.backView, { backgroundColor: isDark ? appColors.darkPrimary : appColors.whiteColor }]}
+                >
+                    <Back />
+                </TouchableOpacity>
 
-        {!isBottomSheetOpen && (
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={handleLocationChange}
-            disabled={
-              isUpdatingLocation ||
-              fetchingAddress ||
-              loadingMap ||
-              !currentAddress
-            }
-            activeOpacity={0.8}>
-            {isUpdatingLocation || fetchingAddress ? (
-              <ActivityIndicator size="large" color={appColors.whiteColor} />
-            ) : (
-              <Text style={styles.confirmText}>
-                {translateData.confirmLocation ||
-                  translateData.confirmLocationText}
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
+                {loadingMap ? (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator size="large" color={appColors.primary} />
+                    </View>
+                ) : initialCoords ? (
+                    <>
+                        <WebView
+                            ref={webViewRef}
+                            style={styles.mapView}
+                            source={{ html: getMapHTML(initialCoords, mapType, isDark) }}
+                            onMessage={handleWebViewMessage}
+                            javaScriptEnabled
+                            domStorageEnabled
+                            originWhitelist={['*']}
+                        />
+                        <View style={styles.pointerMarker} pointerEvents="none">
+                            <Image source={Images.pin} style={styles.pinImage} />
+                        </View>
+                    </>
+                ) : (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator size="large" color={appColors.primary} />
+                    </View>
+                )}
 
-        <BottomSheetModal
-          ref={bottomSheetRef}
-          index={0}
-          snapPoints={snapPoints}
-          backgroundStyle={{
-            backgroundColor: isDark
-              ? appColors.darkPrimary
-              : appColors.whiteColor,
-          }}
-          handleIndicatorStyle={{ backgroundColor: appColors.primary }}
-          onChange={handleSheetChanges}>
-          {bottomSheetContent}
-        </BottomSheetModal>
-      </View>
-    </BottomSheetModalProvider>
-  );
+                <View style={[styles.textInputContainer, { backgroundColor: isDark ? appColors.darkPrimary : appColors.whiteColor, flexDirection: viewRTLStyle }]}>
+                    <View style={[styles.addressBtnView, { backgroundColor: isDark ? appColors.bgDark : appColors.lightGray }]}>
+                        <AddressMarker />
+                    </View>
+                    <TextInput
+                        style={[styles.textInput, { color: isDark ? appColors.whiteColor : appColors.blackColor }]}
+                        value={fetchingAddress ? translateData.locating : currentAddress || translateData.moveToLocate}
+                        editable={false}
+                        multiline
+                    />
+                </View>
+
+                {!isBottomSheetOpen && (
+                    <TouchableOpacity
+                        style={styles.confirmButton}
+                        onPress={handleLocationChange}
+                        disabled={isUpdatingLocation || fetchingAddress || loadingMap || !currentAddress}
+                        activeOpacity={0.8}
+                    >
+                        {isUpdatingLocation || fetchingAddress ? (
+                            <ActivityIndicator size="large" color={appColors.whiteColor} />
+                        ) : (
+                            <Text style={styles.confirmText}>{translateData.confirmLocation || translateData.confirmLocationText}</Text>
+                        )}
+                    </TouchableOpacity>
+                )}
+
+                <BottomSheetModal
+                    ref={bottomSheetRef}
+                    index={0}
+                    snapPoints={snapPoints}
+                    backgroundStyle={{ backgroundColor: isDark ? appColors.darkPrimary : appColors.whiteColor }}
+                    handleIndicatorStyle={{ backgroundColor: appColors.primary }}
+                    onChange={handleSheetChanges}
+                >
+                    {bottomSheetContent}
+                </BottomSheetModal>
+            </View>
+        </BottomSheetModalProvider>
+    );
 }

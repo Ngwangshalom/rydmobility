@@ -130,26 +130,34 @@ export function RentalBooking() {
     });
   };
 
-  const geocodeAddress = async address => {
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          address,
-        )}&key=${Google_Map_Key}`,
-      );
-      const dataMap = await response.json();
-      if (dataMap.results?.length > 0) {
-        const location = dataMap.results[0].geometry.location;
-        return {
-          lat: location.lat,
-          lng: location.lng,
-        };
+const geocodeAddress = async (address: string) => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        address,
+      )}&addressdetails=1&limit=1`,
+      {
+        headers: {
+          'User-Agent': 'ryd/1.0 (mail@ryd.com)', // Required by OSM
+          'Accept-Language': 'en' // Optional: specify language
+        }
       }
-    } catch (error) {
-      console.error('Error geocoding address:', error);
+    );
+    
+    const dataMap = await response.json();
+    
+    if (dataMap && dataMap.length > 0) {
+      const location = dataMap[0];
+      return {
+        lat: parseFloat(location.lat),
+        lng: parseFloat(location.lon), // Note: OSM uses "lon" not "lng"
+      };
     }
-    return null;
-  };
+  } catch (error) {
+    console.error('Error geocoding address with OSM:', error);
+  }
+  return null;
+};
 
   useEffect(() => {
     if (fieldValue === "pickupLocation") {

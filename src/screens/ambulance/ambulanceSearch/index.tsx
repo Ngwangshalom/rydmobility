@@ -28,7 +28,7 @@ export function AmbulanceSearch() {
     const [isScrolling, setIsScrolling] = useState<boolean>(true);
     const { homeScreenData, } = useSelector((state: any) => state.home);
     const dispatch = useDispatch<AppDispatch>();
-    const { bgFullStyle, viewRTLStyle, textRTLStyle, isDark, bgContainer, Google_Map_Key } = useValues();
+    const { bgFullStyle, viewRTLStyle, textRTLStyle, isDark, bgContainer } = useValues();
     const { translateData } = useSelector((state: any) => state.setting);
     const { latitude, longitude } = useStoredLocation();
 
@@ -46,6 +46,7 @@ export function AmbulanceSearch() {
         }
     };
 
+    // OSM Reverse Geocoding (coordinates to address)
     const fetchAddressFromCoords = async (latitude: any, longitude: any) => {
         if (!latitude || !longitude) {
             setIsLoadingCoords(false);
@@ -53,50 +54,65 @@ export function AmbulanceSearch() {
         }
 
         setIsLoadingCoords(true);
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${Google_Map_Key}&result_type=street_address`;
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`;
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'YourAppName/1.0 (your@email.com)',
+                    'Accept-Language': 'en'
+                }
+            });
             const json = await response.json();
-            if (json.status === "OK" && json.results?.length > 0) {
-                const address = json.results[0].formatted_address;
+            if (json.display_name) {
+                const address = json.display_name;
                 setPickup(address);
                 const coords: any = { latitude, longitude };
                 setPickupCoords(coords);
                 updateWebViewMap(coords);
             }
         } catch (error) {
-            console.error("Error fetching address:", error);
+            console.error("Error fetching address from OSM:", error);
         } finally {
             setIsLoadingCoords(false);
         }
     };
 
-    const fetchCoordinates = async (address: string | number | boolean, isPickup: any) => {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Google_Map_Key}`;
+    // OSM Forward Geocoding (address to coordinates)
+    const fetchCoordinates = async (address: string, isPickup: boolean) => {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&addressdetails=1&limit=1`;
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'YourAppName/1.0 (your@email.com)',
+                    'Accept-Language': 'en'
+                }
+            });
             const json = await response.json();
 
-            if (json.status === "OK" && json.results?.length > 0) {
-                const location = json.results[0].geometry.location;
-                const coords = { latitude: location.lat, longitude: location.lng };
+            if (json && json.length > 0) {
+                const location = json[0];
+                const coords = { 
+                    latitude: parseFloat(location.lat), 
+                    longitude: parseFloat(location.lon) 
+                };
                 if (isPickup) {
                     setPickupCoords(coords);
                     updateWebViewMap(coords);
                 }
+                return coords;
             }
         } catch (error) {
-            console.error("Error fetching coordinates:", error);
+            console.error("Error fetching coordinates from OSM:", error);
         }
+        return null;
     };
 
     const updateWebViewMap = (coords: any) => {
         if (webViewRef.current && coords) {
             const script = `
                 if (window.map && window.marker) {
-                    window.marker.setPosition({lat: ${coords.latitude}, lng: ${coords.longitude}});
-                    window.map.setCenter({lat: ${coords.latitude}, lng: ${coords.longitude}});
-                    window.map.setZoom(15);
+                    window.marker.setLatLng([${coords.latitude}, ${coords.longitude}]);
+                    window.map.setView([${coords.latitude}, ${coords.longitude}], 15);
                 }
             `;
             webViewRef.current.postMessage(script);
@@ -114,25 +130,36 @@ export function AmbulanceSearch() {
         Keyboard.dismiss();
     };
 
+    // OSM Autocomplete/Place Search
     const fetchAddressSuggestions = useCallback(async (text: string) => {
         if (text?.length < 3) {
             setSuggestions([]);
             return;
         }
 
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${Google_Map_Key}&types=geocode`;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&addressdetails=1&limit=5`;
 
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'YourAppName/1.0 (your@email.com)',
+                    'Accept-Language': 'en'
+                }
+            });
             const json = await response.json();
 
-            if (json.status === "OK" && json.predictions?.length > 0) {
-                setSuggestions(json.predictions.slice(0, 2));
+            if (json && json.length > 0) {
+                const formattedSuggestions = json.map((item: any) => ({
+                    display_name: item.display_name,
+                    lat: item.lat,
+                    lon: item.lon
+                }));
+                setSuggestions(formattedSuggestions);
             } else {
                 setSuggestions([]);
             }
         } catch (error) {
-            console.error("Error fetching address suggestions:", error);
+            console.error("Error fetching address suggestions from OSM:", error);
         }
     }, []);
 
@@ -155,105 +182,131 @@ export function AmbulanceSearch() {
         try {
             const locationData = { 0: pickup };
             await setValue("ambulanceLocations", JSON.stringify(locationData));
-            try {
-                const response = await fetch(
-                    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-                        pickup
-                    )}&key=${Google_Map_Key}`
-                );
-                const dataMap = await response.json();
-                if (dataMap.results?.length > 0) {
-                    const location = dataMap?.results[0]?.geometry?.location;
-                    dispatch(ambulanceAction({ lat: location.lat, lng: location.lng }));
-                    navigation.navigate("BookAmbulance", { location: pickup, lat: location.lat, lng: location.lng });
-
-                    return {
-                        latitude: location.lat,
-                        longitude: location.lng,
-                    };
-                }
-            } catch (error) {
-                console.error("Error geocoding address:", error);
+            
+            const coords = await fetchCoordinates(pickup, true);
+            if (coords) {
+                dispatch(ambulanceAction({ lat: coords.latitude, lng: coords.longitude }));
+                navigation.navigate("BookAmbulance", { 
+                    location: pickup, 
+                    lat: coords.latitude, 
+                    lng: coords.longitude 
+                });
+                return coords;
             }
         } catch (error) {
-            console.error("Error storing locations:", error);
+            console.error("Error storing locations or geocoding:", error);
         }
     }
 
     const generateMapHTML = () => {
-        const darkMapStyle = JSON.stringify([
-            { elementType: "geometry", stylers: [{ color: "#212121" }] },
-            { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-            { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#757575" }] },
-            { featureType: "poi", elementType: "geometry", stylers: [{ color: "#282828" }] },
-            { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2c2c2c" }] },
-            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#383838" }] },
-            { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f2f2f" }] },
-            { featureType: "water", elementType: "geometry", stylers: [{ color: "#000000" }] },
-            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#3d3d3d" }] }
-        ]);
+        // Using Leaflet.js with OpenStreetMap tiles
+        const darkMapStyle = `
+            .leaflet-container {
+                background: #212121;
+                filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+            }
+            .leaflet-layer {
+                filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(1.2);
+            }
+        `;
 
         return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body, html { margin: 0; padding: 0; height: 100%; }
-            #map { height: 100%; width: 100%; }
-        </style>
-    </head>
-    <body>
-        <div id="map"></div>
-        <script>
-            let map;
-            let marker;
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; }
+        #map { height: 100%; width: 100%; }
+        ${isDark ? darkMapStyle : ''}
+        
+        .custom-marker {
+            background: ${appColors.primary || '#007AFF'};
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .custom-marker::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+    
+    <script>
+        let map;
+        let marker;
+        
+        function initMap() {
+            const defaultCoords = ${pickupCoords ? `[${pickupCoords.latitude}, ${pickupCoords.longitude}]` : '[0, 0]'};
             
-            function initMap() {
-                map = new google.maps.Map(document.getElementById("map"), {
-                    zoom: 15,
-                    center: { lat: ${pickupCoords?.latitude || 0}, lng: ${pickupCoords?.longitude || 0} },
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                    fullscreenControl: false,
-                    styles: ${isDark ? darkMapStyle : "[]"} 
-                });
-                
-                marker = new google.maps.Marker({
-                    position: { lat: ${pickupCoords?.latitude || 0}, lng: ${pickupCoords?.longitude || 0} },
-                    map: map,
-                    title: "${translateData.PickupAmbulance || 'Pickup Location'}",
-                    icon: {
-                        url: 'data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${appColors.primary || '#007AFF'}"/>
-                            </svg>
-                        `)}',
-                        scaledSize: new google.maps.Size(30, 30),
-                        anchor: new google.maps.Point(15, 30)
-                    }
-                });
-                
-                window.map = map;
-                window.marker = marker;
+            // Initialize map
+            map = L.map('map').setView(defaultCoords, 15);
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Create custom marker
+            const customIcon = L.divIcon({
+                className: 'custom-marker',
+                iconSize: [30, 30],
+                iconAnchor: [15, 30]
+            });
+            
+            // Add marker
+            marker = L.marker(defaultCoords, {
+                icon: customIcon,
+                title: "${translateData.PickupAmbulance || 'Pickup Location'}"
+            }).addTo(map);
+            
+            // Make map and marker globally accessible
+            window.map = map;
+            window.marker = marker;
+        }
+        
+        // Initialize map when page loads
+        document.addEventListener('DOMContentLoaded', initMap);
+        
+        // Listen for RN messages
+        window.addEventListener('message', function(event) {
+            try { 
+                eval(event.data); 
+            } catch (e) { 
+                console.error('Error executing script:', e); 
             }
-            
-            // Listen for RN messages
-            window.addEventListener('message', function(event) {
-                try { eval(event.data); } catch (e) { console.error('Error executing script:', e); }
-            });
-            document.addEventListener('message', function(event) {
-                try { eval(event.data); } catch (e) { console.error('Error executing script:', e); }
-            });
-        </script>
-        <script async defer src="https://maps.googleapis.com/maps/api/js?key=${Google_Map_Key}&callback=initMap"></script>
-    </body>
-    </html>
+        });
+        document.addEventListener('message', function(event) {
+            try { 
+                eval(event.data); 
+            } catch (e) { 
+                console.error('Error executing script:', e); 
+            }
+        });
+    </script>
+</body>
+</html>
     `;
     };
-
 
     return (
         <View style={[styles.container, { backgroundColor: bgFullStyle }]}>
@@ -290,18 +343,18 @@ export function AmbulanceSearch() {
                     <View style={styles.listView}>
                         <FlatList
                             data={suggestions?.length > 0 ? suggestions : []}
-                            keyExtractor={(item, index) => item?.address || item?.place_id || index.toString()}
+                            keyExtractor={(item, index) => item?.display_name || index.toString()}
                             renderItem={({ item, index }) => {
                                 const isLastItem = index == suggestions?.length - 1;
                                 return (
                                     <View>
                                         <TouchableOpacity
                                             activeOpacity={0.7}
-                                            onPress={() => handleSelectSuggestion(item?.address || item?.description, isPickupField)}
+                                            onPress={() => handleSelectSuggestion(item?.display_name, isPickupField)}
                                             style={[styles.suggestionItem, { flexDirection: viewRTLStyle }]}
                                         >
                                             <View><Location /></View>
-                                            <Text style={styles.suggestionText}>{item?.address || item?.description}</Text>
+                                            <Text style={styles.suggestionText}>{item?.display_name}</Text>
                                         </TouchableOpacity>
                                         {!isLastItem && (
                                             <View style={{ borderBottomWidth: windowHeight(1), borderColor: appColors.border }} />
@@ -363,6 +416,8 @@ export function AmbulanceSearch() {
                         javaScriptEnabled={true}
                         domStorageEnabled={true}
                         startInLoadingState={false}
+                        onMessage={(event) => {
+                        }}
                     />
                 )}
             </View>

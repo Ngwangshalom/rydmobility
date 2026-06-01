@@ -92,7 +92,7 @@ const ConfirmButton = React.memo(({
 ));
 
 export function LocationSelect() {
-  const { isDark, viewRTLStyle, Google_Map_Key } = useValues();
+  const { isDark, viewRTLStyle } = useValues();
   const webViewRef = useRef<WebView>(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -104,8 +104,14 @@ export function LocationSelect() {
   const [loadingMap, setLoadingMap] = useState(true);
   const [fetchingAddress, setFetchingAddress] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const { translateData, taxidoSettingData } = useSelector((state: any) => state.setting);
-  const mapType = taxidoSettingData?.cabbooking_values?.location?.map_provider;
+  const { translateData } = useSelector((state: any) => state.setting);
+
+  // Headers for OSM Nominatim API
+  const NOMINATIM_HEADERS = {
+    'User-Agent': 'Ryd/1.0',
+    'Accept': 'application/json',
+    'Accept-Language': 'en',
+  };
 
   useEffect(() => {
     const lat = currentLatitude;
@@ -117,55 +123,44 @@ export function LocationSelect() {
       setMapCenterCoords(coords);
       setLoadingMap(false);
     } else {
-      // Fallback if location is not detected immediately
-      const timer = setTimeout(() => {
-        const fallbackCoords = { latitude: 37.78825, longitude: -122.4324 }; // Default to SF if GPS fails
-        setInitialCoords(fallbackCoords);
-        setMapCenterCoords(fallbackCoords);
-        setLoadingMap(false);
-      }, 3000);
-      return () => clearTimeout(timer);
+      console.warn("No initial location found.");
+      setLoadingMap(false);
     }
   }, [currentLatitude, currentLongitude]);
 
-  // Memoize fetchAddress to prevent recreation
+  // OSM Nominatim-based address fetching
   const fetchAddress = useCallback(async (lat: number, lng: number) => {
-    if (!Google_Map_Key) {
-      console.error("[fetchAddress] Google Maps API Key is missing!");
-      setCurrentAddress("Configuration error: Missing API Key.");
-      return;
-    }
-
     setFetchingAddress(true);
     try {
-      let response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}`
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          method: 'GET',
+          headers: NOMINATIM_HEADERS
+        }
       );
-      let json = await response.json();
-
-      if (json.status === 'OK' && json.results?.length === 0) {
-        response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}`
-        );
-        json = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      if (json.status === 'OK' && json.results?.length > 0) {
-        const bestResult = json.results[0];
-        const cleanedAddress = bestResult?.formatted_address;
-        setCurrentAddress(cleanedAddress);
+      
+      const data = await response.json();
+      
+      if (data && data.display_name) {
+        const address = data.display_name;
+        setCurrentAddress(address);
       } else {
-        console.warn("[fetchAddress] Geocoding API returned no results:", json.status);
+        console.warn("[fetchAddress] OSM Nominatim returned no address data");
         setCurrentAddress("Could not find address for this location.");
       }
 
     } catch (error) {
-      console.error("[fetchAddress] Failed to fetch address:", error);
+      console.error("[fetchAddress] Failed to fetch address from OSM:", error);
       setCurrentAddress("Failed to connect to address service.");
     } finally {
       setFetchingAddress(false);
     }
-  }, [Google_Map_Key]);
+  }, []);
 
   useEffect(() => {
     if (mapCenterCoords) {
@@ -181,24 +176,33 @@ export function LocationSelect() {
   }, [mapCenterCoords, fetchAddress]);
 
   const handleWebViewMessage = useCallback((event: any) => {
-    const data = JSON.parse(event?.nativeEvent?.data);
-    if (data?.type === 'mapMove') {
-      const { lat, lng } = data?.payload;
-      setMapCenterCoords({ latitude: lat, longitude: lng });
+    try {
+      const data = JSON.parse(event?.nativeEvent?.data);
+      if (data?.type === 'mapMove') {
+        const { lat, lng } = data?.payload;
+        setMapCenterCoords({ latitude: lat, longitude: lng });
+      }
+    } catch (error) {
+      console.error("Error parsing WebView message:", error);
     }
   }, []);
 
   const handleConfirmLocation = useCallback(async () => {
     if (!currentAddress || !mapCenterCoords || fetchingAddress) {
-      Alert.alert(translateData.locationNotReady, translateData.locationDescription);
+      Alert.alert(
+        translateData.locationNotReady || "Location Not Ready", 
+        translateData.locationDescription || "Please wait while we fetch the address or select a valid location."
+      );
       return;
     }
+    
     if (screenValue === "HomeScreen") {
       await setValue('user_latitude_Selected', mapCenterCoords?.latitude.toString());
       await setValue('user_longitude_Selected', mapCenterCoords?.longitude.toString());
       (navigation as any).replace("MyTabs");
       return;
     }
+    
     (navigation as any).navigate(screenValue, {
       selectedAddress: currentAddress,
       fieldValue: field,
@@ -211,15 +215,14 @@ export function LocationSelect() {
       formattedDate,
       formattedTime,
     });
-  }, [currentAddress, mapCenterCoords, fetchingAddress, screenValue, field, navigation, service_ID, service_name, service_category_ID, service_category_slug, formattedDate, formattedTime]);
+  }, [currentAddress, mapCenterCoords, fetchingAddress, screenValue, field, navigation, service_ID, service_name, service_category_ID, service_category_slug, formattedDate, formattedTime, translateData]);
 
-  const getMapHTML = useCallback((coords: { latitude: number; longitude: number }, mapType: string, isDark: boolean) => {
-    if (mapType === 'osm') {
-      const darkTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-      const lightTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      const tileUrl = isDark ? darkTileUrl : lightTileUrl;
+  const getMapHTML = useCallback((coords: { latitude: number; longitude: number }, isDark: boolean) => {
+    const darkTileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const lightTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const tileUrl = isDark ? darkTileUrl : lightTileUrl;
 
-      return `
+    return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -232,6 +235,10 @@ export function LocationSelect() {
               height: 100%;
               width: 100%;
               background-color: ${isDark ? appColors.blackColor : appColors.whiteColor};
+              overflow: hidden;
+            }
+            .leaflet-control-container {
+              display: none;
             }
           </style>
       </head>
@@ -243,134 +250,82 @@ export function LocationSelect() {
                   const map = L.map('map', {
                       center: [${coords?.latitude}, ${coords?.longitude}],
                       zoom: 16,
-                      zoomControl: false
+                      zoomControl: false,
+                      dragging: true,
+                      scrollWheelZoom: false,
+                      doubleClickZoom: true,
+                      boxZoom: false,
+                      keyboard: false,
+                      tap: false,
+                      touchZoom: true
                   });
 
                   L.tileLayer('${tileUrl}', {
-                      attribution: '© OpenStreetMap contributors'
+                      attribution: '© OpenStreetMap contributors',
+                      maxZoom: 19,
+                      minZoom: 1
                   }).addTo(map);
 
+                  // Throttle moveend events to prevent too many messages
+                  let moveEndTimeout;
                   map.on('moveend', function() {
+                      if (moveEndTimeout) clearTimeout(moveEndTimeout);
+                      moveEndTimeout = setTimeout(function() {
+                          const center = map.getCenter();
+                          const message = {
+                              type: 'mapMove',
+                              payload: { 
+                                  lat: center.lat, 
+                                  lng: center.lng 
+                              }
+                          };
+                          if (window.ReactNativeWebView) {
+                              window.ReactNativeWebView.postMessage(JSON.stringify(message));
+                          }
+                      }, 100);
+                  });
+
+                  // Also capture drag events for smoother updates
+                  map.on('drag', function() {
                       const center = map.getCenter();
                       const message = {
                           type: 'mapMove',
-                          payload: { lat: center.lat, lng: center.lng }
+                          payload: { 
+                              lat: center.lat, 
+                              lng: center.lng 
+                          }
                       };
-                      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+                      if (window.ReactNativeWebView) {
+                          window.ReactNativeWebView.postMessage(JSON.stringify(message));
+                      }
                   });
               }
-              initMap();
+              
+              // Initialize map when DOM is loaded
+              document.addEventListener('DOMContentLoaded', initMap);
           </script>
       </body>
       </html>
     `;
-    }
-
-    // Google Maps implementation (existing code)
-    const darkTheme = [
-      { elementType: "geometry", stylers: [{ color: "#212121" }] },
-      { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-      { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-      { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
-      {
-        featureType: "administrative",
-        elementType: "geometry",
-        stylers: [{ color: "#757575" }]
-      },
-      {
-        featureType: "poi",
-        elementType: "geometry",
-        stylers: [{ color: "#282828" }]
-      },
-      {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#181818" }]
-      },
-      {
-        featureType: "road",
-        elementType: "geometry.fill",
-        stylers: [{ color: "#2c2c2c" }]
-      },
-      {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#8a8a8a" }]
-      },
-      {
-        featureType: "transit",
-        elementType: "geometry",
-        stylers: [{ color: "#2f2f2f" }]
-      },
-      {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#000000" }]
-      },
-      {
-        featureType: "water",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#3d3d3d" }]
-      }
-    ];
-
-    const mapThemeStyles = isDark ? darkTheme : [];
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-          body, html, #map {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            background-color: ${isDark ? "#000" : "#fff"};
-          }
-        </style>
-    </head>
-    <body>
-        <div id="map"></div>
-        <script>
-            function initMap() {
-                const map = new google.maps.Map(document.getElementById('map'), {
-                    center: { lat: ${coords?.latitude}, lng: ${coords?.longitude} },
-                    zoom: 16,
-                    disableDefaultUI: true,
-                    styles: ${JSON.stringify(mapThemeStyles)}
-                });
-
-                map.addListener('idle', () => {
-                    const center = map.getCenter();
-                    const message = {
-                        type: 'mapMove',
-                        payload: { lat: center.lat(), lng: center.lng() }
-                    };
-                    window.ReactNativeWebView.postMessage(JSON.stringify(message));
-                });
-            }
-        </script>
-        <script async defer src="https://maps.googleapis.com/maps/api/js?key=${Google_Map_Key}&callback=initMap"></script>
-    </body>
-    </html>
-  `;
-  }, [Google_Map_Key]);
+  }, []);
 
   // Memoize the WebView source to prevent unnecessary reloads
   const webViewSource = useMemo(() => {
-    return initialCoords ? { html: getMapHTML(initialCoords, mapType, isDark) } : { html: '' };
-  }, [initialCoords, getMapHTML, mapType, isDark]);
+    return initialCoords ? { html: getMapHTML(initialCoords, isDark) } : { html: '' };
+  }, [initialCoords, getMapHTML, isDark]);
 
   // Memoize loading state component
   const loadingComponent = useMemo(() => (
     <View style={styles.loaderContainer}>
       <ActivityIndicator size="large" color={appColors.primary} />
+      <Text style={[styles.loadingText, { color: isDark ? appColors.whiteColor : appColors.blackColor }]}>
+        Loading Map...
+      </Text>
     </View>
-  ), []);
+  ), [isDark]);
 
   return (
-    <View style={external.main}>
+    <View style={[external.main, { backgroundColor: isDark ? appColors.blackColor : appColors.whiteColor }]}>
       <BackButton onPress={() => navigation.goBack()} isDark={isDark} />
 
       {loadingMap ? (
@@ -382,12 +337,18 @@ export function LocationSelect() {
             style={styles.mapView}
             source={webViewSource}
             onMessage={handleWebViewMessage}
-            javaScriptEnabled
-            domStorageEnabled
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
             originWhitelist={['*']}
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
+            startInLoadingState={true}
+            renderLoading={() => loadingComponent}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.error('WebView error:', nativeEvent);
+            }}
           />
           <MapPointer pinImage={Images.pin} />
         </>

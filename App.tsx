@@ -21,6 +21,7 @@ import {
 } from "@src/utils/pushNotificationHandler";
 
 enableScreens();
+
 const AppContent = () => {
   const { isDark } = useValues();
 

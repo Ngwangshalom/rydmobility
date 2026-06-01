@@ -161,7 +161,7 @@ export function Onboarding() {
       dotStyle={styles.dotStyles}
       paginationStyle={styles.paginationStyle}>
       {Array.isArray(taxidoSettingData?.cabbooking_values?.onboarding) &&
-        taxidoSettingData.taxido_values.onboarding.map(
+        taxidoSettingData.cabbooking_values.onboarding.map(
           (slide: any, index: number) => (
             <TouchableWithoutFeedback
               key={index}

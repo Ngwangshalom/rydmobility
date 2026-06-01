@@ -311,35 +311,62 @@ export function LocationSave() {
   );
 
   // Memoize fetchAddress to prevent recreation
-  const fetchAddress = useCallback(
-    async (lat: number, lng: number) => {
-      if (!Google_Map_Key) {
-        console.warn("[fetchAddress] Missing Google Map Key");
-        setCurrentAddress("Google Map Key is missing");
-        return;
-      }
+    const fetchAddress = useCallback(async (lat: number, lng: number) => {
+    setFetchingAddress(true);
+    
+    try {
+      let address = "";
+      
+      if (mapType === "osm") {
+        // Use OpenStreetMap Nominatim for reverse geocoding
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+        
+        const response = await fetch(nominatimUrl, {
+          headers: {
+            'User-Agent': 'Ryd/1.0', // Required by Nominatim
+            'Accept-Language': 'en' // Optional: set preferred language
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.display_name) {
+            address = data.display_name;
+          } else {
+            address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+          }
+        } else {
+          throw new Error('OSM geocoding failed');
+        }
+      } else {
+        // Use Google Maps Geocoding API
+        if (!Google_Map_Key) {
+          console.warn("[fetchAddress] Missing Google Map Key");
+          address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+          setCurrentAddress(address);
+          return;
+        }
 
-      try {
-        setFetchingAddress(true);
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}&result_type=street_address`;
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${Google_Map_Key}`;
         const res = await fetch(url);
         const json = await res.json();
 
         if (json?.results?.length > 0) {
-          const formattedAddress = json.results[0].formatted_address;
-          setCurrentAddress(formattedAddress);
+          address = json.results[0].formatted_address;
         } else {
-          setCurrentAddress("No address found");
+          address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         }
-      } catch (err) {
-        console.error("[fetchAddress] Error:", err);
-        setCurrentAddress("Address fetch failed");
-      } finally {
-        setFetchingAddress(false);
       }
-    },
-    [Google_Map_Key],
-  );
+      
+      setCurrentAddress(address);
+    } catch (err) {
+      console.error("[fetchAddress] Error:", err);
+      // Fallback to coordinates if address fetch fails
+      setCurrentAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    } finally {
+      setFetchingAddress(false);
+    }
+  }, [Google_Map_Key, mapType]);
 
   // Optimize useEffect dependencies
   useEffect(() => {

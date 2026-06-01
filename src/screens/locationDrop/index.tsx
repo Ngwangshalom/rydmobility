@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Text, TouchableOpacity, View, ScrollView, Modal, Animated, Dimensions, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, FlatList, Alert, Platform, TextInput } from "react-native";
+import { Text, TouchableOpacity, View, ScrollView, Modal, Animated, Dimensions, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, FlatList, Alert, Platform, TextInput, Pressable } from "react-native";
 import { History, Calender, AddressMarker, PickLocation, Save, Driving, Gps, Close, Add, Minus } from "@utils/icons";
 import { styles } from "./styles";
 import { commonStyles } from "../../styles/commonStyle";
@@ -15,6 +15,7 @@ import { useAppNavigation } from "@src/utils/navigation";
 import { getDistance } from "geolib";
 import useSmartLocation from "@src/components/helper/locationHelper";
 import { useValues } from "@src/utils/context/index";
+import { OPENROUTE_API_KEY, OPENROUTE_BASE_URL } from "@src/api/config";
 
 export function LocationDrop() {
   const dispatch = useDispatch();
@@ -29,7 +30,7 @@ export function LocationDrop() {
   const [pickupLocation, setPickupLocation] = useState<string>(defultAddress);
   const [fieldLength, setFieldLength] = useState<number>(0);
   const [addressData, setAddressData] = useState<string>("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isInitialFetchDone, setIsInitialFetchDone] = useState(false);
   const { zoneValue } = useSelector(state => state.zone);
@@ -47,7 +48,7 @@ export function LocationDrop() {
   const [proceedLoading, setProceedLoading] = useState(false);
   const { currentLatitude, currentLongitude } = useSmartLocation();
   const [isdesFocused, setIsdesFocused] = useState(false);
-  const { linearColorStyle, viewRTLStyle, textColorStyle, bgFullLayout, textRTLStyle, isDark, isRTL, Google_Map_Key } = useValues();
+  const { linearColorStyle, viewRTLStyle, textColorStyle, bgFullLayout, textRTLStyle, isDark, isRTL } = useValues();
   const [wasAutoFilled, setWasAutoFilled] = useState(false);
   const [destinationFullAddress, setDestinationFullAddress] = useState();
   const [hasNavigated, setHasNavigated] = useState(false);
@@ -61,38 +62,31 @@ export function LocationDrop() {
     lat: number;
     lng: number;
   } | null>(null);
-  const [stopCoords, setStopCoords] = useState<{
-    lat: number;
-    lng: number;
-  } | null | Array<{ lat: number; lng: number } | null>>(null);
+  const [stopCoords, setStopCoords] = useState<any[]>([]);
   const [minRadiusKm, setMinRadiusKm] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
-
+  // Debounce function
+  const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
 
   useEffect(() => {
     const init = async () => {
       const meters =
-        taxidoSettingData?.cabbooking_values?.ride?.min_intracity_radius ?? 0;
+        taxidoSettingData?.taxido_values?.ride?.min_intracity_radius ?? 0;
       await setMinRadiusKm(meters / 1000);
     };
     init();
-  }, [taxidoSettingData?.cabbooking_values?.ride?.min_intracity_radius]);
-
-  const truncateAddress = (address: string, maxLength: number = 20): string => {
-    if (!address) return "";
-    if (address?.length <= maxLength) return address;
-    return address.substring(0, maxLength) + "...";
-  };
-
-  const getDisplayValue = (value: string, fieldName: string): string => {
-    if (!value) return "";
-    // Show full value when field is focused
-    if (activeField === fieldName) {
-      return value;
-    }
-    // Show beginning part (first 20 chars) when field is not focused
-    return truncateAddress(value, 20);
-  };
+  }, [taxidoSettingData?.taxido_values?.ride?.min_intracity_radius]);
 
   const coordset = (
     selectedPickup,
@@ -103,88 +97,96 @@ export function LocationDrop() {
     if (selectedPickup)
       convertToCoords(selectedPickup, setPickupCoords, "pickup", shortPickup);
     if (selectedDropOff)
-    convertToCoords(
-      selectedDropOff,
-      setDestinationCoords,
-      "destination",
-      shortDropOff,
-    );
-    if (stops && stops?.length > 0) {
-      convertStopsToCoords(stops);
-    }
+      convertToCoords(
+        selectedDropOff,
+        setDestinationCoords,
+        "destination",
+        shortDropOff,
+      );
+    if (stops.length) convertStopsToCoords(stops);
   };
 
+  // Use OpenStreetMap Nominatim for geocoding
   const convertToCoords = async (
     address: string,
     setter: (coords: { lat: number; lng: number } | null) => void,
     label: string = "",
     shortAddress?: string,
   ) => {
-
     if (!address && !shortAddress) {
       setter(null);
       return;
     }
 
-    const fetchCoords = async (query: string) => {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          query,
-        )}&key=${Google_Map_Key}`,
-      );
-      return res.json();
-    };
+    const query = shortAddress || address;
 
     try {
-      let data = null;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'RYDApp/1.0 (support@rydapp.com)'
+          }
+        }
+      );
 
-      if (address) {
-        data = await fetchCoords(address);
+      if (!response.ok) {
+        console.warn(`⚠️ OSM geocoding failed for ${label}:`, query);
+        setter(null);
+        return;
       }
 
-      if (
-        !data ||
-        data?.status !== "OK" ||
-        !data?.results ||
-        data.results?.length === 0
-      ) {
-        data = await fetchCoords(address);
-      }
+      const data = await response.json();
 
-      if (data?.status === "OK" && data?.results.length > 0) {
-        const { lat, lng } = data.results[0].geometry.location;
+      if (Array.isArray(data) && data.length > 0) {
+        const location = data[0];
+        const lat = parseFloat(location.lat);
+        const lng = parseFloat(location.lon);
+        console.log(`✅ Geocoded ${label}: ${lat}, ${lng}`);
         setter({ lat, lng });
       } else {
-        console.warn("❌ No geocode results for:", shortAddress || address);
+        console.warn(`❌ No geocode results for ${label}:`, query);
         setter(null);
       }
     } catch (err) {
-      console.error("⚠️ Geocoding error:", err);
+      console.error(`⚠️ Geocoding error for ${label}:`, err);
       setter(null);
     }
   };
 
   const convertStopsToCoords = async stopList => {
-    if (!stopList || stopList?.length === 0) {
+    if (!stopList || stopList.length === 0) {
       setStopCoords([]);
       return;
     }
 
     const coordsArray = [];
+    
     for (const stop of stopList) {
       if (stop && stop.trim().length > 0) {
         try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-              stop,
-            )}&key=${Google_Map_Key}`,
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stop)}&limit=1&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'RYDApp/1.0 (support@rydapp.com)'
+              }
+            }
           );
-          const data = await res.json();
-          if (data?.status === "OK" && data?.results?.length > 0) {
-            const { lat, lng } = data?.results[0].geometry.location;
-            coordsArray.push({ lat: lat, lng: lng });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              const location = data[0];
+              const lat = parseFloat(location.lat);
+              const lng = parseFloat(location.lon);
+              coordsArray.push({ lat, lng });
+            } else {
+              console.warn("No results for stop:", stop);
+              coordsArray.push(null);
+            }
           } else {
-            console.warn("No results for stop:", stop, data.status);
+            console.warn("Geocoding failed for stop:", stop);
             coordsArray.push(null);
           }
         } catch (err) {
@@ -199,68 +201,62 @@ export function LocationDrop() {
   };
 
   useEffect(() => {
-    fetchAddressFromCoords(currentLatitude, currentLongitude);
+    if (currentLatitude && currentLongitude) {
+      fetchAddressFromCoords(currentLatitude, currentLongitude);
+    }
   }, [currentLatitude, currentLongitude]);
 
-  useEffect(() => {
-    if (stops && stops?.length > 0) {
-      convertStopsToCoords(stops);
-    } else {
-      setStopCoords([]);
-    }
-  }, [stops]);
-
+  // Use OpenStreetMap for reverse geocoding
   const fetchAddressFromCoords = async (latitude, longitude) => {
     if (!latitude || !longitude) return;
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${Google_Map_Key}&result_type=street_address`;
+    
     try {
-      const response = await fetch(url);
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'RYDApp/1.0 (support@rydapp.com)'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Reverse geocoding failed");
+        return;
+      }
+
       const json = await response.json();
-      if (json.status === "OK" && json?.results?.length > 0) {
-        const addressComponents = json.results[0].address_components;
-        const route = addressComponents.find(comp =>
-          comp.types.includes("route"),
-        )?.short_name;
-        const locality = addressComponents.find(comp =>
-          comp.types.includes("locality"),
-        )?.short_name;
-        const subLocality = addressComponents.find(comp =>
-          comp.types.includes("sublocality"),
-        )?.short_name;
-        const shortAddress = [route, subLocality || locality]
-          .filter(Boolean)
-          .join(", ");
-        const fullAddress = json.results[0]?.formatted_address;
-        const useFullAddress =
-          taxidoSettingData?.cabbooking_values?.activation?.full_address_location ==
-          1;
+
+      if (json && json.display_name) {
+        const useFullAddress = taxidoSettingData?.taxido_values?.activation?.full_address_location == 1;
 
         if (!pickupLocation) {
+          const shortAddress = json.address?.road || 
+                              json.address?.neighbourhood || 
+                              json.address?.suburb ||
+                              json.display_name.split(',')[0];
+          const fullAddress = json.display_name;
+          
           setPickupLocation(
-            useFullAddress
-              ? fullAddress
-              : shortAddress || json?.results[0]?.formatted_address,
+            useFullAddress ? fullAddress : shortAddress || fullAddress
           );
           setPickupCoords({ lat: latitude, lng: longitude });
         }
         setWasAutoFilled(true);
       }
     } catch (error) {
-      console.error("Error fetching short address:", error);
+      console.error("Error fetching address from coordinates:", error);
     }
   };
 
-
   useFocusEffect(
     useCallback(() => {
-      if (pickupLocation && pickupLocation.trim().length > 0 && wasAutoFilled && !activeField && (!destination || destination.trim().length === 0)) {
-        const timer = setTimeout(() => {
-          destinationRef.current?.focus();
-        }, 500);
+      const timer = setTimeout(() => {
+        destinationRef.current?.focus();
+      }, 300);
 
-        return () => clearTimeout(timer);
-      }
-    }, [pickupLocation, wasAutoFilled, activeField, destination]),
+      return () => clearTimeout(timer);
+    }, [pickupLocation, wasAutoFilled]),
   );
 
   useEffect(() => {
@@ -284,7 +280,7 @@ export function LocationDrop() {
             parsedLocations = [parsedLocations];
           }
         }
-        setRecentDatas(parsedLocations);
+        // setRecentDatas(parsedLocations);
       } catch (error) {
         console.error("Error parsing recent locations:", error);
         setRecentDatas([]);
@@ -292,8 +288,6 @@ export function LocationDrop() {
     };
     fetchRecentData();
   }, []);
-
-
 
   useEffect(() => {
     if (fieldLength > 3) {
@@ -337,57 +331,162 @@ export function LocationDrop() {
     const allFieldsFilled =
       pickupLocation.trim().length > 0 &&
       destination?.trim().length > 0 &&
-      (stops?.length === 0 || allStopsValid);
+      (stops.length === 0 || allStopsValid);
     if (activeField === null && allFieldsFilled) {
       setHasNavigated(true);
     }
   }, [activeField, pickupLocation, destination, stops]);
 
-  const fetchAddressSuggestions = async input => {
-    if (input?.length >= 3) {
-      const apiUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${input}&location=${currentLatitude},${currentLongitude}&radius=50000&key=${Google_Map_Key}`;
+  // Use OpenStreetMap Nominatim for address suggestions
+  const fetchAddressSuggestions = async (input) => {
+    if (!input || input.length < 3) {
+      setSuggestions([]);
+      return;
+    }
 
+    console.log("🔍 Fetching suggestions from OSM for:", input);
+    
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=8&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'RYDApp/1.0 (support@rydapp.com)'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.error("OSM API Error: HTTP", response.status);
+        setSuggestions([]);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        console.error("OSM API Error: Invalid response format");
+        setSuggestions([]);
+        return;
+      }
+     
+      processSuggestionsData(data, input);
+    } catch (error) {
+      console.error("Error fetching suggestions with OSM:", error);
+      setSuggestions([]);
+    }
+  };
+
+  const processSuggestionsData = (data, searchQuery) => {
+    if (!data || !Array.isArray(data)) {
+      setSuggestions([]);
+      return;
+    }
+     
+    const places = data.map(item => {
       try {
-        const response = await fetch(apiUrl);
-        const data = await response.json();
-
-        if (data.status !== "OK") {
-          console.error(
-            "Autocomplete API Error:",
-            data.status,
-            data.error_message || "",
+        let distanceKm = 0;
+        
+        // Calculate distance from user's current location to suggestion
+        if (currentLatitude && currentLongitude && item.lat && item.lon) {
+          distanceKm = calculateDirectDistance(
+            currentLatitude,
+            currentLongitude,
+            parseFloat(item.lat),
+            parseFloat(item.lon)
           );
-          return;
         }
 
-        const promises = data.predictions.map(async prediction => {
-          const placeDetailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction?.place_id}&fields=geometry&key=${Google_Map_Key}`;
-          const placeDetailsRes = await fetch(placeDetailsUrl);
-          const placeDetailsData = await placeDetailsRes.json();
+        const address = item.address || {};
+        const displayName = item.display_name || '';
+        
+        // Create better address display
+        const shortAddress = address.road || 
+                            address.neighbourhood || 
+                            address.suburb || 
+                            address.city ||
+                            displayName.split(',')[0];
+          
+        const detailAddress = displayName;
 
-          const location = placeDetailsData?.result?.geometry?.location;
-          if (!location) return null;
-
-          const distanceInMeters = getDistance(
-            { latitude: currentLatitude, longitude: currentLongitude },
-            { latitude: location?.lat, longitude: location?.lng },
-          );
-          return {
-            id: prediction?.place_id,
-            shortAddress: prediction.structured_formatting?.main_text,
-            detailAddress: prediction.structured_formatting?.secondary_text,
-            distanceKm: (distanceInMeters / 1000).toFixed(2),
-          };
-        });
-
-        const places = (await Promise.all(promises)).filter(Boolean);
-        const sortedPlaces = places.sort(
-          (a, b) => parseFloat(a.distanceKm) - parseFloat(b.distanceKm),
-        );
-        setSuggestions(sortedPlaces);
+        return {
+          id: item.place_id || item.osm_id || Math.random().toString(36).substr(2, 9),
+          shortAddress: shortAddress || "Unknown Location",
+          detailAddress: detailAddress,
+          distanceKm: distanceKm,
+          lat: parseFloat(item.lat) || 0,
+          lng: parseFloat(item.lon) || 0,
+          originalData: item,
+          relevance: calculateRelevance(shortAddress, detailAddress, searchQuery)
+        };
       } catch (error) {
-        console.error("Error fetching suggestions with distance:", error);
+        console.error('Error processing suggestion item:', error, item);
+        return null;
       }
+    }).filter(Boolean);
+
+    // Sort by relevance and distance
+    const sortedPlaces = places
+      .sort((a, b) => {
+        // First sort by relevance score (exact matches first)
+        if (b.relevance !== a.relevance) {
+          return b.relevance - a.relevance;
+        }
+        // Then by distance (closest first)
+        return a.distanceKm - b.distanceKm;
+      })
+      .slice(0, 8); // Limit to 8 results
+
+    console.log(`✅ Displaying ${sortedPlaces.length} sorted suggestions with distances`);
+    setSuggestions(sortedPlaces);
+  };
+
+  // Calculate relevance score based on exact word matching
+  const calculateRelevance = (shortAddress, detailAddress, searchQuery) => {
+    let score = 0;
+    const searchTerms = searchQuery.toLowerCase().split(' ').filter(term => term.length > 2);
+    const shortAddrLower = shortAddress?.toLowerCase() || '';
+    const detailAddrLower = detailAddress?.toLowerCase() || '';
+
+    if (searchTerms.length === 0) return score;
+
+    searchTerms.forEach(term => {
+      // Exact word match in short address gets highest score
+      const shortWords = shortAddrLower.split(/\W+/);
+      if (shortWords.includes(term)) {
+        score += 10; // Exact word match
+      } else if (shortAddrLower.includes(term)) {
+        score += 5; // Substring match
+      }
+      
+      // Exact word match in detail address
+      const detailWords = detailAddrLower.split(/\W+/);
+      if (detailWords.includes(term)) {
+        score += 5; // Exact word match
+      } else if (detailAddrLower.includes(term)) {
+        score += 2; // Substring match
+      }
+
+      // Bonus for beginning of string matches
+      if (shortAddrLower.startsWith(term)) {
+        score += 3;
+      }
+    });
+
+    return score;
+  };
+
+  // Debounced search handler
+  const debouncedSearch = useRef(
+    debounce((text) => {
+      fetchAddressSuggestions(text);
+    }, 500)
+  ).current;
+
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+    if (text.length >= 3) {
+      debouncedSearch(text);
     } else {
       setSuggestions([]);
     }
@@ -395,29 +494,26 @@ export function LocationDrop() {
 
   const handleRecentClick = async suggestion => {
     Keyboard.dismiss();
-    const fullAddr = `${suggestion?.shortAddress}, ${suggestion?.detailAddress}`;
     if (activeField === "pickupLocation") {
       setPickupLocation(suggestion?.shortAddress);
       setWasAutoFilled(true);
-      setActiveField(null);
-      coordset(fullAddr, "", suggestion?.shortAddress, "");
+      coordset(suggestion?.detailAddress, "", suggestion?.shortAddress, "");
     } else if (activeField === "destination") {
-      setDestination(suggestion?.shortAddress);
+      setDestination(suggestion?.detailAddress);
       setDestinationFullAddress(suggestion);
-      setProceedLoading(true);
-      setActiveField(null);
-      coordset("", fullAddr, "", suggestion?.shortAddress);
+      coordset("", suggestion?.detailAddress, "", suggestion?.shortAddress);
     } else if (activeField && activeField.startsWith("stop-")) {
-      const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       const updatedStops = [...stops];
+      const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       updatedStops[stopIndex] = suggestion?.shortAddress;
       setStops(updatedStops);
-      setActiveField(null);
+      coordset(suggestion?.detailAddress);
     }
   };
 
   const handleSuggestionClick = async suggestion => {
     Keyboard.dismiss();
+
     try {
       let storedLocations = [];
       const stored = await getValue("locations");
@@ -444,33 +540,26 @@ export function LocationDrop() {
         if (storedLocations?.length > 5) {
           storedLocations?.shift();
         }
-      } else {
+        await setValue("locations", JSON.stringify(storedLocations));
       }
     } catch (error) {
       console.error("Error handling locations:", error);
     }
 
-    Keyboard.dismiss();
     let updatedStops = [...stops];
-
-    const fullAddr = `${suggestion?.shortAddress}, ${suggestion?.detailAddress}`;
 
     if (activeField === "pickupLocation") {
       setPickupLocation(suggestion?.shortAddress);
       setWasAutoFilled(true);
-      setActiveField(null);
-      coordset(fullAddr, "", suggestion?.shortAddress, "");
+      setPickupCoords({ lat: suggestion.lat, lng: suggestion.lng });
     } else if (activeField === "destination") {
       setDestination(suggestion?.shortAddress);
       setDestinationFullAddress(suggestion);
-      setProceedLoading(true);
-      setActiveField(null);
-      coordset("", fullAddr, "", suggestion?.shortAddress);
+      setDestinationCoords({ lat: suggestion.lat, lng: suggestion.lng });
     } else if (activeField && activeField.startsWith("stop-")) {
       const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       updatedStops[stopIndex] = suggestion?.shortAddress;
       setStops(updatedStops);
-      setActiveField(null);
     }
 
     setTimeout(() => {
@@ -483,56 +572,76 @@ export function LocationDrop() {
         destination?.trim()?.length > 0 || activeField === "destination";
 
       if (isPickupFilled && isDestinationFilled && areAllStopsFilled) {
+        // All fields are filled
       }
     }, 100);
   };
 
   useEffect(() => {
-    fetchAddressSuggestions(addressData);
+    if (addressData && addressData.length >= 3) {
+      handleSearch(addressData);
+    } else {
+      setSuggestions([]);
+    }
   }, [addressData]);
 
   useEffect(() => {
     let length = 0;
-    let addressData = "";
+    let currentAddressData = "";
 
     if (activeField === "pickupLocation") {
       length = pickupLocation?.length;
-      addressData = pickupLocation;
+      currentAddressData = pickupLocation;
     } else if (activeField === "destination") {
       length = destination?.length;
-      addressData = destination;
+      currentAddressData = destination;
     } else if (activeField && activeField.startsWith("stop-")) {
       const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       const stopData = stops[stopIndex];
       if (stopData !== undefined) {
         length = stopData?.length;
-        addressData = stopData;
+        currentAddressData = stopData;
       }
     }
-    setAddressData(addressData);
+    setAddressData(currentAddressData);
     setFieldLength(length);
-  }, [stops, pickupLocation, destination]);
+  }, [activeField, stops, pickupLocation, destination]);
 
   const coordsData = async () => {
-    const geocodeAddress = async address => {
+    const geocodeAddress = async (address) => {
+      if (!address || typeof address !== 'string' || address.trim() === '') {
+        console.warn('Invalid address input:', address);
+        return null;
+      }
+      
       try {
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            address,
-          )}&key=${Google_Map_Key}`,
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`,
+          {
+            headers: {
+              'User-Agent': 'RydApp/1.0 (support@rydapp.com)',
+            },
+          }
         );
-        const dataMap = await response.json();
-        if (dataMap?.results?.length > 0) {
-          const location = dataMap?.results[0].geometry.location;
-          return {
-            latitude: location?.lat,
-            longitude: location?.lng,
-          };
+
+        if (!response.ok) {
+          console.warn('OSM API error');
+          return null;
         }
+
+        const data = await response.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          const location = data[0];
+          const latitude = parseFloat(location.lat);
+          const longitude = parseFloat(location.lon);
+          return { latitude, longitude };
+        }
+        return null;
       } catch (error) {
-        console.error("Error geocoding address:", error);
+        console.error('Error geocoding address:', error);
+        return null;
       }
-      return null;
     };
 
     const fetchCoordinates = async () => {
@@ -544,97 +653,167 @@ export function LocationDrop() {
         }
       } catch (error) {
         console.error("Error fetching coordinates:", error);
-      } finally {
       }
     };
     fetchCoordinates();
   };
 
-  const getVehicleTypes = () => {
-    if (!pickupCoords || !destinationCoords) {
-      console.warn("Coordinates not ready yet. Please wait.");
-      return;
+const getVehicleTypes = async () => {
+  console.log('getVehicleTypes called with coordinates:', {
+    pickupCoords,
+    destinationCoords,
+    stopCoords,
+    service_name
+  });
+
+  // Validate all coordinates are available and valid
+  const validateCoordinate = (coord: any) => {
+    return coord && 
+           typeof coord.lat === 'number' && 
+           typeof coord.lng === 'number' &&
+           !isNaN(coord.lat) && 
+           !isNaN(coord.lng) &&
+           coord.lat !== 0 && 
+           coord.lng !== 0;
+  };
+
+  if (!validateCoordinate(pickupCoords) || !validateCoordinate(destinationCoords)) {
+    console.warn("Invalid coordinates:", { pickupCoords, destinationCoords });
+    Alert.alert("Error", "Please select valid pickup and destination locations.");
+    setProceedLoading(false);
+    return;
+  }
+
+  // Prepare all locations in the order: pickup -> stops -> destination
+  const allLocations = [];
+  
+  // Add pickup location
+  if (validateCoordinate(pickupCoords)) {
+    allLocations.push({
+      lat: pickupCoords.lat,
+      lng: pickupCoords.lng
+    });
+  }
+
+  // Add stops (if any)
+  if (stopCoords && Array.isArray(stopCoords)) {
+    stopCoords.forEach((stop, index) => {
+      if (validateCoordinate(stop)) {
+        allLocations.push({
+          lat: stop.lat,
+          lng: stop.lng
+        });
+      } else {
+        console.warn(`Invalid stop coordinate at index ${index}:`, stop);
+      }
+    });
+  }
+
+  // Add destination location
+  if (validateCoordinate(destinationCoords)) {
+    allLocations.push({
+      lat: destinationCoords.lat,
+      lng: destinationCoords.lng
+    });
+  }
+
+  console.log('All locations to send:', allLocations);
+
+  // Validate we have at least 2 locations
+  if (allLocations.length < 2) {
+    console.warn('Not enough valid locations');
+    Alert.alert("Error", "Please select valid pickup and destination locations.");
+    setProceedLoading(false);
+    return;
+  }
+
+  // Get formatted time for schedule rides
+  const getFormattedTime = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const seconds = date.getSeconds().toString().padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+  };
+
+  const now = new Date();
+
+  // Prepare payload EXACTLY as backend expects
+  const payload = {
+    locations: allLocations, // Array of {lat, lng} objects - THIS IS CRITICAL
+    service_id: service_ID,
+    service_category_id: service_category_ID,
+    current_time: getFormattedTime(now),
+    location_addresses: {
+      pickup: pickupLocation,
+      stops: stops,
+      destination: destination
     }
+  };
 
-    const rawLocations = [
-      pickupCoords,
-      ...(stopCoords || []),
-      destinationCoords,
-    ];
+  console.log('Sending payload to backend:', JSON.stringify(payload, null, 2));
 
-    const filteredLocations = rawLocations
-      .filter(coord => coord && coord?.lat != null && coord?.lng != null)
-      .map(coord => ({
-        lat: coord?.lat,
-        lng: coord?.lng,
-      }));
+  try {
+    if (service_name === "cab") {
+      const result = await dispatch(vehicleTypeDataGet(payload)).unwrap();
+      console.log('Dispatch successful, result:', result);
+    
+      // Save comprehensive location data for later use
+      const locationData = {
+        destinationFullAddress,
+        destination,
+        stops,
+        pickupLocation,
+        service_ID,
+        zoneValue,
+        scheduleDate,
+        service_category_ID,
+        service_name,
+        filteredLocations: allLocations, // All coordinates
+        locationAddresses: {
+          pickup: pickupLocation,
+          stops: stops,
+          destination: destination
+        },
+        pickupCoords,
+        destinationCoords,
+        stopsCoords: stopCoords || [],
+        // Store the exact payload for debugging
+        backendPayload: payload
+      };
+      
+      await setValue("locations", JSON.stringify(locationData));
 
-    const getFormattedTime = date => {
-      const hours = date.getHours().toString().padStart(2, "0");
-      const minutes = date.getMinutes().toString().padStart(2, "0");
-      const seconds = date.getSeconds().toString().padStart(2, "0");
-      return `${hours}:${minutes}:${seconds}`;
-    };
-
-
-    const now = new Date();
-
-    const payload = {
-      locations: filteredLocations,
-      service_id: service_ID,
-      service_category_id: service_category_ID,
-      current_time: getFormattedTime(now),
-    };
-
-    const fullDestination = destinationFullAddress
-      ? `${destinationFullAddress.shortAddress}, ${destinationFullAddress.detailAddress}`
-      : destination;
-
-    if (service_name == "cab") {
-      dispatch(vehicleTypeDataGet(payload)).then(res => {
-        if (service_name === "cab") {
-          if (
-            pickupLocation &&
-            destinationFullAddress &&
-            Object.keys(pickupLocation).length > 0 &&
-            Object.keys(destinationFullAddress).length > 0
-          ) {
-            const locationData = {
-              destinationFullAddress,
-              stops,
-              pickupLocation,
-              service_ID,
-              zoneValue,
-              scheduleDate,
-              service_category_ID,
-              service_name,
-              filteredLocations,
-              pickupCoords,
-              destinationCoords,
-            };
-            setValue("locations", JSON.stringify(locationData));
-          }
-
-          navigate("BookRide", {
-            destination: fullDestination,
-            stops,
-            pickupLocation,
-            service_ID,
-            zoneValue,
-            scheduleDate,
-            service_category_ID,
-            service_name,
-            filteredLocations,
-            pickupCoords,
-            destinationCoords,
-            stopsCoords: stopCoords,
-          });
-          setProceedLoading(false);
-        }
+      console.log('Navigating to BookRide with coordinates:', allLocations);
+      
+      // Navigate with all necessary data
+      navigate("BookRide", {
+        destination,
+        stops,
+        pickupLocation,
+        service_ID,
+        zoneValue,
+        scheduleDate,
+        service_category_ID,
+        service_name,
+        filteredLocations: allLocations, // Send coordinates array
+        locationAddresses: { // Send addresses separately
+          pickup: pickupLocation,
+          stops: stops,
+          destination: destination
+        },
+        pickupCoords,
+        destinationCoords,
+        stopsCoords: stopCoords || [],
+        // Also send the raw addresses for display
+        receiverName: "", // Add if you have receiver info
+        countryCode: "", // Add if you have country code
+        phoneNumber: "", // Add if you have phone number
       });
-    } else if (service_name == "freight" || service_name == "parcel") {
+      
+    } else if (service_name === "freight" || service_name === "parcel") {
+      console.log('Navigating to Outstation with coordinates:', allLocations);
       navigate("Outstation", {
-        destination: fullDestination,
+        destination,
         stops,
         pickupLocation,
         service_ID,
@@ -642,36 +821,107 @@ export function LocationDrop() {
         service_name,
         service_category_ID,
         scheduleDate,
-        filteredLocations,
+        filteredLocations: allLocations,
+        locationAddresses: {
+          pickup: pickupLocation,
+          stops: stops,
+          destination: destination
+        },
         pickupCoords,
         destinationCoords,
+        stopsCoords: stopCoords || [],
       });
-      setProceedLoading(false);
     }
-  };
-
+  } catch (error: any) {
+    console.error('Error in getVehicleTypes:', error);
+    
+    // Show specific error messages
+    let errorMessage = "Failed to get vehicle types. Please try again.";
+    if (error.message) {
+      errorMessage = error.message;
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    }
+    
+    Alert.alert("Error", errorMessage);
+  } finally {
+    setProceedLoading(false);
+    console.log('Loading set to false');
+  }
+};
   useEffect(() => {
     if (zoneValue && isInitialFetchDone) {
       gotoNext();
     }
   }, [zoneValue]);
 
-  const calculateDistance = (lat1: any, lon1: any, lat2: any, lon2: any) => {
-    const R = 6371;
-    const toRadians = degree => (degree * Math.PI) / 180;
+  // Fixed distance calculation function
+  const calculateDirectDistance = (lat1, lon1, lat2, lon2) => {
+    try {
+      // Validate inputs
+      if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+        console.warn("❌ Missing coordinates for distance calculation");
+        return 0;
+      }
 
-    const dLat = toRadians(lat2 - lat1);
-    const dLon = toRadians(lon2 - lon1);
+      // Convert to numbers
+      const lat1Num = parseFloat(lat1);
+      const lon1Num = parseFloat(lon1);
+      const lat2Num = parseFloat(lat2);
+      const lon2Num = parseFloat(lon2);
 
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+      if (isNaN(lat1Num) || isNaN(lon1Num) || isNaN(lat2Num) || isNaN(lon2Num)) {
+        console.warn("❌ Invalid coordinates:", { lat1, lon1, lat2, lon2 });
+        return 0;
+      }
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+      // Haversine formula
+      const R = 6371; // Earth's radius in kilometers
+      const dLat = (lat2Num - lat1Num) * Math.PI / 180;
+      const dLon = (lon2Num - lon1Num) * Math.PI / 180;
+      
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1Num * Math.PI / 180) * Math.cos(lat2Num * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      
+      console.log(`📍 Distance calculated: ${distance.toFixed(2)}km from (${lat1Num},${lon1Num}) to (${lat2Num},${lon2Num})`);
+      return distance;
+    } catch (error) {
+      console.error("🚨 Error in distance calculation:", error);
+      return 0;
+    }
+  };
+
+  // Calculate distance between pickup and destination
+  const calculateRouteDistance = async () => {
+    try {
+      if (!pickupCoords || !destinationCoords) {
+        console.warn("Missing coordinates for distance calculation");
+        return 0;
+      }
+
+      console.log("📍 Calculating distance between:", {
+        pickup: pickupCoords,
+        destination: destinationCoords
+      });
+
+      const distance = calculateDirectDistance(
+        pickupCoords.lat,
+        pickupCoords.lng,
+        destinationCoords.lat,
+        destinationCoords.lng
+      );
+
+      console.log(`📍 Final distance: ${distance.toFixed(2)}km`);
+      return distance;
+    } catch (error) {
+      console.error("Error calculating route distance:", error);
+      return 0;
+    }
   };
 
   const outOfCity = () => {
@@ -710,10 +960,9 @@ export function LocationDrop() {
 
           if (!alreadyExists) {
             storedLocations.push(suggestion);
-            if (storedLocations?.length > 5) {
+            if (storedLocations.length > 5) {
               storedLocations.shift();
             }
-          } else {
           }
         } catch (error) {
           console.error("Error handling locations:", error);
@@ -733,7 +982,6 @@ export function LocationDrop() {
   };
 
   const gotoBook = async () => {
-
     if (isProcessing) return;
 
     setProceedLoading(true);
@@ -769,12 +1017,11 @@ export function LocationDrop() {
         }
       }
 
-      const distance = calculateDistance(
-        pickupCoords?.lat,
-        pickupCoords?.lng,
-        destinationCoords?.lat,
-        destinationCoords?.lng,
-      );
+      // Calculate distance between pickup and destination
+      console.log("📍 Starting distance calculation...");
+      const distance = await calculateRouteDistance();
+
+      console.log(`📍 Final calculated distance: ${distance.toFixed(2)}km, Min radius: ${minRadiusKm}km`);
 
       if (
         ["intercity", "intercity-freight", "intercity-parcel"].includes(
@@ -891,10 +1138,10 @@ export function LocationDrop() {
                   { color: textColorStyle },
                   { textAlign: textRTLStyle },
                 ]}>
-                {suggestion?.destinationFullAddress?.shortAddress?.length > 42
+                {suggestion?.destinationFullAddress?.shortAddress?.length > 30
                   ? `${suggestion?.destinationFullAddress?.shortAddress.slice(
                     0,
-                    42,
+                    30,
                   )}...`
                   : suggestion?.destinationFullAddress?.shortAddress}
               </Text>
@@ -906,16 +1153,16 @@ export function LocationDrop() {
                     marginHorizontal: windowWidth(10),
                   },
                 ]}>
-                {suggestion?.destinationFullAddress?.detailAddress?.length > 42
+                {suggestion?.destinationFullAddress?.detailAddress?.length > 30
                   ? `${suggestion?.destinationFullAddress?.detailAddress.slice(
                     0,
-                    42,
+                    30,
                   )}...`
                   : suggestion?.destinationFullAddress?.detailAddress}
               </Text>
             </View>
           </TouchableOpacity>
-          {index !== recentDatas?.length - 1 && (
+          {index !== recentDatas.length - 1 && (
             <View
               style={[
                 styles.bottomLine,
@@ -931,8 +1178,9 @@ export function LocationDrop() {
       </TouchableWithoutFeedback>
     );
   };
+
   const addStop = () => {
-    if (stops?.length < 3) {
+    if (stops.length < 3) {
       setStops(prevStops => [...prevStops, ""]);
     }
   };
@@ -941,10 +1189,10 @@ export function LocationDrop() {
     const updatedStops = stops.filter((_, i) => i !== index);
     setStops(updatedStops);
 
-    if (updatedStops?.length === 0) {
+    if (updatedStops.length === 0) {
       setActiveField("destination");
-    } else if (index === stops?.length - 1) {
-      setActiveField(`stop-${updatedStops?.length}`);
+    } else if (index === stops.length - 1) {
+      setActiveField(`stop-${updatedStops.length}`);
     }
   };
 
@@ -971,6 +1219,7 @@ export function LocationDrop() {
       setActiveField(`stop-${id - 2}`);
     }
   };
+
   const handleBlur = () => {
     setActiveField(null);
   };
@@ -991,6 +1240,11 @@ export function LocationDrop() {
     setDestination("");
   };
 
+  const handlePress = () => {
+    if (pickupRef.current) {
+      pickupRef.current.focus();
+    }
+  };
 
   useEffect(() => {
     if (destinationCoords) {
@@ -1002,6 +1256,110 @@ export function LocationDrop() {
     setModalVisible(false);
     setProceedLoading(false);
   }
+
+  const renderSuggestionItem = ({ item: suggestion, index }) => {
+    const displayDistance = suggestion?.distanceKm || 0;
+    const isMiles = taxidoSettingData?.taxido_values?.ride?.distance_unit?.toLowerCase() === "mile";
+    const convertedDistance = isMiles ? displayDistance * 0.621371 : displayDistance;
+    const distanceText = convertedDistance > 0 ? convertedDistance.toFixed(1) : "0.0";
+    const unitText = taxidoSettingData?.taxido_values?.ride?.distance_unit || "km";
+
+    return (
+      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={[
+            styles.suggestionsView,
+            { flexDirection: viewRTLStyle },
+          ]}
+          onPress={() => handleSuggestionClick(suggestion)}
+        >
+          <View
+            style={[
+              styles.addressMArker,
+              {
+                backgroundColor: isDark
+                  ? appColors.bgDark
+                  : appColors.lightGray,
+              },
+            ]}
+          >
+            <AddressMarker />
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              width: "90%",
+              marginHorizontal: windowWidth(5)
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <View
+                style={[
+                  { flexDirection: viewRTLStyle },
+                  styles.spaceing,
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.titleText,
+                      {
+                        color: textColorStyle,
+                        textAlign: textRTLStyle,
+                      },
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {suggestion?.shortAddress}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.titleTextDetail,
+                      { textAlign: textRTLStyle },
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {suggestion?.detailAddress}
+                  </Text>
+                </View>
+              </View>
+
+              {index !== suggestions.length - 1 ? (
+                <View style={{ alignSelf: "center" }}>
+                  <SolidLine color={bgFullLayout} />
+                </View>
+              ) : null}
+            </View>
+
+            <View
+              style={{
+                justifyContent: "center",
+                alignItems: "flex-end",
+                marginLeft: windowWidth(10),
+                minWidth: windowWidth(80),
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: appFonts.medium,
+                  color: appColors.primary,
+                  textAlign: isRTL ? "left" : "right",
+                  fontSize: 14,
+                }}
+              >
+                {/* {distanceText} {unitText} */}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableWithoutFeedback>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -1046,68 +1404,71 @@ export function LocationDrop() {
                     },
                   ]}>
                   <View>
-                    <View
-                      style={[
-                        styles.inputContainer,
-                        { flexDirection: viewRTLStyle },
-                      ]}>
+                    <Pressable onPress={handlePress}>
                       <View
                         style={[
-                          styles.iconContainer,
-                          {
-                            backgroundColor: isDark
-                              ? appColors.darkPrimary
-                              : appColors.lightGray,
-                          },
-                        ]}>
-                        <Gps width={20} height={20} />
-                      </View>
-                      <View
-                        style={[
-                          styles.inputWithIcons,
+                          styles.inputContainer,
                           { flexDirection: viewRTLStyle },
                         ]}>
-                        <TextInput
-                          ref={pickupRef}
+                        <View
                           style={[
-                            styles.input,
+                            styles.iconContainer,
                             {
-                              color: isDark
-                                ? appColors.whiteColor
-                                : appColors.primaryText,
+                              backgroundColor: isDark
+                                ? appColors.darkPrimary
+                                : appColors.lightGray,
                             },
-                            { textAlign: textRTLStyle },
-                          ]}
-                          placeholderTextColor={
-                            isDark
-                              ? appColors.darkText
-                              : appColors.regularText
-                          }
-                          placeholder={translateData.pickupLocationTittle}
-                          value={getDisplayValue(pickupLocation, "pickupLocation")}
-                          onChangeText={text => {
-                            handleInputChange(text, 1);
-                            setWasAutoFilled(false);
-                          }}
-                          onFocus={() => {
-                            handleFocus(1);
-                          }}
-                          onBlur={() => {
-                            handleBlur();
-                          }}
-                          textAlignVertical="center"
-                          multiline={false}
-                          numberOfLines={1}
-                        />
-                      </View>
-                      {pickupLocation?.length >= 1 && (
+                          ]}>
+                          <Gps width={20} height={20} />
+                        </View>
                         <TouchableOpacity
-                          onPress={handleClosepickup}
-                          activeOpacity={0.7}>
-                          <Close />
+                          onPress={handlePress}
+                          style={{ flex: 1, zIndex: 3 }}>
+                          <View
+                            style={[
+                              styles.inputWithIcons,
+                              { flexDirection: viewRTLStyle },
+                            ]}>
+                            <TextInput
+                              ref={pickupRef}
+                              style={[
+                                styles.input,
+                                {
+                                  color: isDark
+                                    ? appColors.whiteColor
+                                    : appColors.primaryText,
+                                },
+                                { textAlign: textRTLStyle },
+                              ]}
+                              placeholderTextColor={
+                                isDark
+                                  ? appColors.darkText
+                                  : appColors.regularText
+                              }
+                              placeholder={translateData.pickupLocationTittle}
+                              value={pickupLocation}
+                              onChangeText={text => {
+                                handleInputChange(text, 1);
+                                setWasAutoFilled(false);
+                              }}
+                              onFocus={() => {
+                                handleFocus(1);
+                              }}
+                              onBlur={() => {
+                                handleBlur();
+                              }}
+                            />
+                          </View>
                         </TouchableOpacity>
-                      )}
-                    </View>
+                        {pickupLocation?.length >= 1 && (
+                          <TouchableOpacity
+                            onPress={handleClosepickup}
+                            activeOpacity={0.7}>
+                            <Close />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </Pressable>
                     <View
                       style={{
                         borderColor: isDark
@@ -1136,7 +1497,7 @@ export function LocationDrop() {
                         key={index + 3}
                         style={[
                           styles.inputContainer,
-                          index === stops?.length - 1 ? {} : { marginBottom: 8 },
+                          index === stops.length - 1 ? {} : { marginBottom: 8 },
                           { flexDirection: viewRTLStyle },
                         ]}>
                         <View style={styles.iconContainer}>
@@ -1164,56 +1525,62 @@ export function LocationDrop() {
                         </View>
 
                         <View style={styles.inputWithIcons}>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                color: isDark
-                                  ? appColors.whiteColor
-                                  : appColors.primaryText,
-                              },
-                              { textAlign: textRTLStyle },
-                              {
-                                left: isRTL
-                                  ? windowHeight(55)
-                                  : windowHeight(0),
-                              },
+                          <TouchableOpacity
+                            onPress={handlePress}
+                            style={{
+                              flex: 1,
+                              zIndex: 3,
+                              width: windowWidth(250),
+                            }}>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  color: isDark
+                                    ? appColors.whiteColor
+                                    : appColors.primaryText,
+                                },
+                                { textAlign: textRTLStyle },
+                                {
+                                  left: isRTL
+                                    ? windowHeight(55)
+                                    : windowHeight(0),
+                                },
 
-                              index === stops?.length - 1
-                                ? {}
-                                : {
-                                  borderBottomWidth: windowHeight(0.9),
-                                  borderBottomColor: isDark
+                                index === stops.length - 1
+                                  ? {}
+                                  : {
+                                    borderBottomWidth: windowHeight(0.9),
+                                    borderBottomColor: isDark
+                                      ? appColors.darkBorder
+                                      : appColors.border,
+                                  },
+                                { textAlign: textRTLStyle },
+                                {
+                                  borderColor: isDark
                                     ? appColors.darkBorder
                                     : appColors.border,
                                 },
-                              { textAlign: textRTLStyle },
-                              {
-                                borderColor: isDark
-                                  ? appColors.darkBorder
-                                  : appColors.border,
-                              },
-                            ]}
-                            placeholderTextColor={
-                              isDark
-                                ? appColors.darkText
-                                : appColors.regularText
-                            }
-                            placeholder={
-                              translateData.addStopPlaceHolderText
-                            }
-                            value={getDisplayValue(stop, `stop-${index + 1}`)}
-                            onChangeText={text =>
-                              handleInputChange(text, index + 3)
-                            }
-                            onFocus={() => {
-                              handleFocus(index + 3);
-                            }}
-                            onBlur={handleBlur}
-                            textAlignVertical="center"
-                            multiline={false}
-                            numberOfLines={1}
-                          />
+                              ]}
+                              placeholderTextColor={
+                                isDark
+                                  ? appColors.darkText
+                                  : appColors.regularText
+                              }
+                              placeholder={
+                                translateData.addStopPlaceHolderText
+                              }
+                              value={stop}
+                              onChangeText={text =>
+                                handleInputChange(text, index + 3)
+                              }
+                              onFocus={() => {
+                                handleFocus(index + 3);
+                              }}
+                              onBlur={handleBlur}
+                              onPress={handlePress}
+                            />
+                          </TouchableOpacity>
                           <View
                             style={[
                               styles.addButton,
@@ -1227,7 +1594,7 @@ export function LocationDrop() {
                                 <Close />
                               </TouchableOpacity>
                             )}
-                            {index === stops?.length - 1 && (
+                            {index === stops.length - 1 && (
                               <>
                                 <View style={styles.iconSpacing} />
                                 <TouchableOpacity
@@ -1245,7 +1612,7 @@ export function LocationDrop() {
                           </View >
                         </View >
                         {
-                          index < stops?.length && (
+                          index < stops.length && (
                             <View
                               style={[
                                 styles.line,
@@ -1275,44 +1642,50 @@ export function LocationDrop() {
                         <PickLocation width={20} height={20} />
                       </View>
                       <View style={styles.inputWithIcons}>
-                        <View style={styles.inputWidth}>
-                          <TextInput
-                            ref={destinationRef}
-                            style={[
-                              styles.input,
-                              {
-                                color: isDark
-                                  ? appColors.whiteColor
-                                  : appColors.primaryText,
-                              },
-                              { textAlign: textRTLStyle },
-                              {
-                                left: isRTL
-                                  ? windowHeight(55)
-                                  : windowHeight(0),
-                              },
-                            ]}
-                            placeholderTextColor={
-                              isDark
-                                ? appColors.darkText
-                                : appColors.regularText
-                            }
-                            placeholder={
-                              translateData.enterDestinationPlaceholderText
-                            }
-                            value={getDisplayValue(destination, "destination")}
-                            onChangeText={text =>
-                              handleInputChange(text, 2)
-                            }
-                            onFocus={() => {
-                              handleFocus(2);
-                            }}
-                            onBlur={handleBlur}
-                            textAlignVertical="center"
-                            multiline={false}
-                            numberOfLines={1}
-                          />
-                        </View>
+                        <TouchableOpacity
+                          onPress={handlePress}
+                          style={{
+                            flex: 1,
+                            zIndex: 3,
+                            width: windowWidth(280),
+                          }}>
+                          <View style={styles.inputWidth}>
+                            <TextInput
+                              ref={destinationRef}
+                              style={[
+                                styles.input,
+                                {
+                                  color: isDark
+                                    ? appColors.whiteColor
+                                    : appColors.primaryText,
+                                },
+                                { textAlign: textRTLStyle },
+                                {
+                                  left: isRTL
+                                    ? windowHeight(55)
+                                    : windowHeight(0),
+                                },
+                              ]}
+                              placeholderTextColor={
+                                isDark
+                                  ? appColors.darkText
+                                  : appColors.regularText
+                              }
+                              placeholder={
+                                translateData.enterDestinationPlaceholderText
+                              }
+                              value={destination}
+                              onChangeText={text =>
+                                handleInputChange(text, 2)
+                              }
+                              onFocus={() => {
+                                handleFocus(2);
+                              }}
+                              onPress={handlePress}
+                              onBlur={handleBlur}
+                            />
+                          </View>
+                        </TouchableOpacity>
                         <View
                           style={[
                             styles.addButton,
@@ -1326,7 +1699,7 @@ export function LocationDrop() {
                               <Close />
                             </TouchableOpacity>
                           )}
-                          {stops?.length < 3 && (
+                          {stops.length < 3 && (
                             <>
                               <View style={styles.iconSpacing} />
                               <TouchableOpacity
@@ -1478,9 +1851,9 @@ export function LocationDrop() {
                 commonStyles.mediumText23,
                 { color: textColorStyle, textAlign: textRTLStyle },
               ]}>
-              {fieldLength >= 3
+              {fieldLength >= 3 && suggestions.length > 0
                 ? translateData.addressSuggestion
-                : translateData.homeRecentSearch}
+                : "Recent Search"}
             </Text>
             <View
               style={[
@@ -1496,119 +1869,14 @@ export function LocationDrop() {
                     : appColors.border,
                 },
               ]}>
-              {suggestions?.length >= 3 ? (
+              {suggestions.length > 0 ? (
                 <FlatList
                   data={suggestions}
-                  keyExtractor={(_, index) => index.toString()}
-                  renderItem={({ item: suggestion, index }) => (
-                    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        style={[
-                          styles.suggestionsView,
-                          { flexDirection: viewRTLStyle },
-                        ]}
-                        onPress={() => handleSuggestionClick(suggestion)}
-                      >
-                        <View
-                          style={[
-                            styles.addressMArker,
-                            {
-                              backgroundColor: isDark
-                                ? appColors.bgDark
-                                : appColors.lightGray,
-                            },
-                          ]}
-                        >
-                          <AddressMarker />
-                        </View>
-
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            width: "90%",
-                            marginHorizontal: windowWidth(5)
-                          }}
-                        >
-                          <View>
-                            <View
-                              style={[
-                                { flexDirection: viewRTLStyle },
-                                styles.spaceing,
-                              ]}
-                            >
-                              <View>
-                                <Text
-                                  style={[
-                                    styles.titleText,
-                                    {
-                                      color: textColorStyle,
-                                      textAlign: textRTLStyle,
-                                    },
-                                  ]}
-                                >
-                                  {suggestion?.shortAddress}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.titleTextDetail,
-                                    { textAlign: textRTLStyle },
-                                  ]}
-                                >
-                                  {suggestion?.detailAddress}
-                                </Text>
-                              </View>
-                            </View>
-
-                            {index !== suggestions?.length - 1 ? (
-                              <View style={{ alignSelf: "center" }}>
-                                <SolidLine color={bgFullLayout} />
-                              </View>
-                            ) : null}
-                          </View>
-
-                          <View
-                            style={{
-                              justifyContent: "center",
-                              alignItems: "flex-end",
-                              marginHorizontal: windowWidth(5),
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontFamily: appFonts.medium,
-                                color: appColors.primary,
-                                width: windowWidth(70),
-                                textAlign: isRTL ? "left" : "right",
-                              }}
-                            >
-                              {(
-                                taxidoSettingData?.cabbooking_values?.ride?.distance_unit?.toLowerCase() ===
-                                  "mile"
-                                  ? (parseFloat(suggestion?.distanceKm) || 0) * 0.621371
-                                  : parseFloat(suggestion?.distanceKm) || 0
-                              ).toFixed(2)}
-                            </Text>
-                            <Text
-                              style={{
-                                fontFamily: appFonts.medium,
-                                color: appColors.primary,
-                                width: windowWidth(60),
-                                textAlign: isRTL ? "left" : "right",
-                              }}
-                            >
-                              {taxidoSettingData?.cabbooking_values?.ride?.distance_unit}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    </TouchableWithoutFeedback>
-                  )}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={renderSuggestionItem}
                   keyboardShouldPersistTaps="always"
                 />
-
-              ) : Array.isArray(recentDatas) && recentDatas?.length > 0 ? (
+              ) : Array.isArray(recentDatas) && recentDatas.length > 0 ? (
                 <FlatList
                   data={recentDatas}
                   keyExtractor={(item, index) => index.toString()}

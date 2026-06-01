@@ -1,4 +1,4 @@
-import { View, Text, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useValues } from "@src/utils/context/index";;
@@ -11,15 +11,14 @@ import useStoredLocation from "@src/components/helper/useStoredLocation";
 
 export function ProfileContainer() {
   const navigation = useNavigation<any>();
-  const { viewRTLStyle, Google_Map_Key, isRTL } = useValues();
+  const { viewRTLStyle, isRTL } = useValues();
   const { self } = useSelector((state: any) => state.account);
-  const { taxidoSettingData, translateData } = useSelector((state: any) => state.setting);
+  const { translateData } = useSelector((state: any) => state.setting);
   const { latitude, longitude } = useStoredLocation();
   const char = self?.name ? self.name.charAt(0) : "";
   const [city, setCity] = useState<string>('');
   const [fullAddress, setFullAddress] = useState<string>('');
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
-
 
   useEffect(() => {
     const getAddress = async () => {
@@ -29,37 +28,51 @@ export function ProfileContainer() {
       let finalLat = lat ? parseFloat(lat) : latitude;
       let finalLng = lng ? parseFloat(lng) : longitude;
 
-      if (!finalLat || !finalLng || !Google_Map_Key) return;
+      if (!finalLat || !finalLng) {
+        setCity(translateData?.npfoundcity || 'City not found');
+        setFullAddress(translateData?.addressnot || 'Address not found');
+        return;
+      }
 
       try {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${finalLat},${finalLng}&key=${Google_Map_Key}`;
-        const response = await fetch(url);
+        // Use OSM Nominatim for free reverse geocoding
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${finalLat}&lon=${finalLng}&zoom=18&addressdetails=1`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'RYD/1.0',
+            'Accept-Language': 'en'
+          }
+        });
         const data = await response.json();
 
-        if (data.status === 'OK') {
-          const components = data.results[0].address_components;
+        if (data && data.address) {
+          const address = data.address;
+          
+          // Extract city/town from address components
+          const foundCity = address.neighbourhood || 
+                           address.town || 
+                           address.village || 
+                           address.municipality || 
+                           address.county ||
+                           'City not found';
+          
+          const fullAddr = data.display_name || 'Address not found';
 
-          const foundCity = components.find((c: any) =>
-            c.types.includes('locality') || c.types.includes('administrative_area_level_2')
-          )?.long_name;
-
-          const fullAddr = data.results[0]?.formatted_address;
-
-          setCity(foundCity || 'City not found');
-          setFullAddress(fullAddr || 'Address not found');
+          setCity(foundCity);
+          setFullAddress(fullAddr);
         } else {
-          setCity(translateData?.npfoundcity);
-          setFullAddress(translateData?.addressnot);
-          console.warn('Geocoding failed:', data.status);
+          setCity(translateData?.npfoundcity || 'City not found');
+          setFullAddress(translateData?.addressnot || 'Address not found');
+          console.warn('OSM Geocoding failed: No address data');
         }
       } catch (error) {
-        console.error('Error fetching address:', error);
-        setCity(translateData?.cityerror);
-        setFullAddress(translateData?.addresserror);
+        console.error('Error fetching address from OSM:', error);
+        setCity(translateData?.cityerror || 'Error fetching city');
+        setFullAddress(translateData?.addresserror || 'Error fetching address');
       }
     };
     getAddress();
-  }, [latitude, longitude, taxidoSettingData, Google_Map_Key]);
+  }, [latitude, longitude, translateData]);
 
   const handleImagePress = async () => {
     const token = await getValue("token")
@@ -67,7 +80,6 @@ export function ProfileContainer() {
       navigation.navigate("EditProfile")
     }
   }
-
 
   useFocusEffect(
     useCallback(() => {
@@ -82,6 +94,7 @@ export function ProfileContainer() {
   const gotoLocation = () => {
     navigation.navigate("LocationSelect", { screenValue: "HomeScreen" })
   }
+  
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -96,16 +109,18 @@ export function ProfileContainer() {
       fetchStoredImage();
     }, [])
   );
+
   return (
     <View style={[styles.mainView, { flexDirection: viewRTLStyle }]}>
 
       <TouchableOpacity onPress={gotoLocation} style={styles.viewText}>
         <Text style={[styles.selfName, { textAlign: isRTL ? 'right' : 'left' }]}>
-          <LocationMarker /> {city?.split(" ")[0] || translateData?.fecthing} <ArrowDown color={appColors.whiteColor} />
+          <LocationMarker /> {city?.split(" ")[0] || translateData?.fecthing || 'Fetching...'} <ArrowDown color={appColors.whiteColor} />
         </Text>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-          <Text style={styles.text}>{fullAddress?.length > 32 ? `${fullAddress.substring(0, 32)}...` : fullAddress}
+          <Text style={styles.text}>
+            {fullAddress.length > 32 ? `${fullAddress.substring(0, 32)}...` : fullAddress}
           </Text>
         </View>
       </TouchableOpacity >
@@ -116,9 +131,14 @@ export function ProfileContainer() {
             style={styles.imageStyle}
             source={{ uri: self.profile_image_url }}
           />
+        ) : localImageUri ? (
+          <Image
+            style={styles.imageStyle}
+            source={{ uri: localImageUri }}
+          />
         ) : (
           <View style={styles.textView}>
-            {loading ? <ActivityIndicator size="small" color={appColors.primary} /> : <Text style={styles.charText}>{char || translateData?.guestChar}</Text>}
+            {loading ? <ActivityIndicator size="small" color={appColors.primary} /> : <Text style={styles.charText}>{char || translateData?.guestChar || 'G'}</Text>}
           </View>
         )}
       </TouchableOpacity>

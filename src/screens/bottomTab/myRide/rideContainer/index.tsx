@@ -177,7 +177,13 @@ export default function RideContainer({ status }: { status: string }) {
   const convertToCoords = async (address) => {
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Google_Map_Key}`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'RYD/1.0',
+            'Accept-Language': 'en'
+          }
+        }
       );
       const data = await res.json();
       if (data.status === 'OK' && data.results?.length > 0) {
@@ -198,7 +204,13 @@ export default function RideContainer({ status }: { status: string }) {
     for (const stop of stopList) {
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(stop)}&key=${Google_Map_Key}`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stop)}&limit=1`,
+          {
+            headers: {
+              'User-Agent': 'RYD/1.0',
+              'Accept-Language': 'en'
+            }
+          }
         );
         const data = await res.json();
         if (data.status === 'OK' && data.results?.length > 0) {

@@ -130,26 +130,31 @@ export function SavedLocation() {
     }
   }, [dispatch, selectedItemId, closeDeleteBottomSheet, navigation]);
 
-  const getCoordinatesFromAddress = async (address: string) => {
+ const getCoordinatesFromAddress = async (address: string) => {
     try {
       const encodedAddress = encodeURIComponent(address);
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${Google_Map_Key}`;
+      // Use OSM Nominatim for forward geocoding
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'RYD/1.0',
+          'Accept-Language': 'en'
+        }
+      });
       const data = await response.json();
 
-      if (data.status === "OK" && data.results?.length > 0) {
-        const location = data.results[0].geometry.location;
-        return { lat: location.lat, lng: location.lng };
+      if (data && data.length > 0) {
+        const location = data[0];
+        return { lat: parseFloat(location.lat), lng: parseFloat(location.lon) };
       } else {
-        throw new Error("No location found");
+        throw new Error('No location found in OSM');
       }
     } catch (error) {
-      console.error("Geocoding Error:", error);
+      console.error('OSM Geocoding Error:', error);
       return null;
     }
   };
-
   const selectLocation = useCallback(
     async (location: string) => {
       const coordinates = await getCoordinatesFromAddress(location);

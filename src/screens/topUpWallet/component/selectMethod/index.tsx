@@ -4,13 +4,12 @@ import styles from "./styles";
 import { useNavigation, useTheme } from "@react-navigation/native";
 import { useValues } from "@src/utils/context/index";;
 import { appColors } from "@src/themes";
-import { Button, notificationHelper, RadioButton } from "@src/commonComponent";
+import { Button, RadioButton } from "@src/commonComponent";
 import { DollarCoin } from "@src/utils/icons";
 import { useDispatch, useSelector } from "react-redux";
-import { paymentsData, selfData, walletData, walletTopUpData } from "../../../../api/store/actions/index";
+import { paymentsData, walletTopUpData } from "../../../../api/store/actions/index";
 import { WalletTopUpDatainterface } from "@src/api/interface/walletInterface";
 import { CustomBackHandler } from "@src/components";
-import { useAppNavigation } from "@src/utils/navigation";
 
 const SelectMethod = () => {
   const { colors } = useTheme();
@@ -22,10 +21,8 @@ const SelectMethod = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const dispatch = useDispatch();
   const { navigate } = useNavigation();
-  const { translateData, settingData } = useSelector((state: any) => state.setting);
+  const { translateData } = useSelector((state: any) => state.setting);
   const [topupLoading, setTopuploading] = useState(false);
-  const { zoneValue } = useSelector((state: any) => state.zone);
-  const { goBack } = useAppNavigation();
 
   useEffect(() => {
     dispatch(paymentsData());
@@ -41,29 +38,16 @@ const SelectMethod = () => {
     let payload: WalletTopUpDatainterface = {
       amount: amount,
       payment_method: selectedPaymentMethod,
-      currency_code: zoneValue?.currency_code,
-      currency_symbol: zoneValue?.currency_symbol
     };
 
 
     dispatch(walletTopUpData(payload))
       .unwrap()
       .then(async (res: any) => {
-        if (settingData?.values?.activation?.demo_mode == '1') {
-          dispatch(walletData() as any);
-          notificationHelper("", "Top-up completed successfully", "success");
-          dispatch(selfData())
-          goBack();
-          return;
-        }
         setTopuploading(false)
         if (res.is_redirect) {
           navigate("PaymentWebView", { url: res.url, selectedPaymentMethod: selectedPaymentMethod, dataValue: res });
         }
-      })
-      .catch((error) => {
-        setTopuploading(false);
-        notificationHelper("", error?.message || String(error), "error");
       });
   };
 

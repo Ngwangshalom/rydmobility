@@ -297,10 +297,16 @@ export function DetailContainer() {
   useEffect(() => {
     const geocodeAddress = async (address: string) => {
       try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+       const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
             address,
-          )}&key=${Google_Map_Key}`,
+          )}&limit=1`,
+          {
+            headers: {
+              'User-Agent': 'RYD/1.0',
+              'Accept-Language': 'en'
+            }
+          }
         );
         const dataMap = await response.json();
         if (dataMap.results?.length > 0) {

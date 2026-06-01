@@ -1,18 +1,10 @@
-import {
-  FlatList,
-  Image,
-  Text,
-  TouchableOpacity,
-  View,
-  Vibration,
-  ActivityIndicator,
-} from "react-native";
+import { FlatList, Image, Text, TouchableOpacity, View, Vibration, ActivityIndicator, Alert } from "react-native";
 import React, { useEffect, useState, useRef } from "react";
 import { styles } from "./styles";
 import { TitleRenderItem } from "./titleRenderItem/index";
 import { appColors, windowHeight } from "@src/themes";
 import { BackArrow, History, Search } from "@src/utils/icons";
-import { useValues } from "@src/utils/context/index";
+import { useValues } from "@src/utils/context/index";;
 import { useAppNavigation } from "@src/utils/navigation";
 import Images from "@src/utils/images";
 import { useDispatch, useSelector } from "react-redux";
@@ -25,44 +17,30 @@ import useStoredLocation from "@src/components/helper/useStoredLocation";
 
 export function TopCategory({ categoryData }: any) {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const [selectedSubcategory, setSelectedSubcategory] = useState<
-    null | string | any
-  >(null);
-  const {
-    bgFullStyle,
-    isDark,
-    viewRTLStyle,
-    textRTLStyle,
-    Google_Map_Key,
-    isRTL,
-  } = useValues();
+  const [selectedSubcategory, setSelectedSubcategory] = useState<null | string | any>(null);
+  const { bgFullStyle, isDark, viewRTLStyle, textRTLStyle, isRTL } = useValues()
   const { navigate }: any = useAppNavigation();
   const isScrollable = categoryData?.length > 4;
   const { translateData } = useSelector((state: any) => state.setting);
   const [recentDatas, setRecentDatas] = useState<string[]>([]);
   const flatListRef = useRef<any>(null);
   const isFocused = useIsFocused();
-  const { walletTypedata }: any = useSelector(
-    (state: RootState) => state.wallet,
-  );
+  const { walletTypedata }: any = useSelector((state: RootState) => state.wallet);
   const dispatch = useDispatch<AppDispatch>();
   const [isLoadingOverlay, setIsLoadingOverlay] = useState<boolean>(false);
   const { latitude, longitude } = useStoredLocation();
-  const { taxidoSettingData } = useSelector((state: any) => state.setting);
-  const [fullAddress, setFullAddress] = useState<string>("");
+  const [fullAddress, setFullAddress] = useState<string>('');
   const [addressCoords, setAddressCoords] = useState<any | null>({
     lat: null,
     lng: null,
   });
   const [showLeftArrow, setShowLeftArrow] = useState(false);
-  const [showRightArrow, setShowRightArrow] = useState(
-    categoryData?.length > 4,
-  );
+  const [showRightArrow, setShowRightArrow] = useState(categoryData.length > 4);
 
   useEffect(() => {
     const getAddress = async () => {
-      let lat = await getValue("user_latitude_Selected");
-      let lng = await getValue("user_longitude_Selected");
+      let lat = await getValue('user_latitude_Selected');
+      let lng = await getValue('user_longitude_Selected');
 
       let finalLat = lat ? parseFloat(lat) : latitude;
       let finalLng = lng ? parseFloat(lng) : longitude;
@@ -70,28 +48,35 @@ export function TopCategory({ categoryData }: any) {
         lat: finalLat,
         lng: finalLng,
       });
-      if (!finalLat || !finalLng || !Google_Map_Key) return;
+      if (!finalLat || !finalLng) {
+        setFullAddress(translateData.noAddressFound || 'Address not found');
+        return;
+      }
 
       try {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${finalLat},${finalLng}&key=${Google_Map_Key}&result_type=street_address`;
-        const response = await fetch(url);
+        // Use OSM Nominatim for free reverse geocoding
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${finalLat}&lon=${finalLng}&zoom=18&addressdetails=1`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'RYD/1.0',
+            'Accept-Language': 'en'
+          }
+        });
         const data = await response.json();
 
-        if (data.status === "OK") {
-          const fullAddr = data.results[0]?.formatted_address;
-
-          setFullAddress(fullAddr || translateData?.noAddressFound);
+        if (data && data.display_name) {
+          setFullAddress(data.display_name);
         } else {
-          setFullAddress(translateData?.noAddressFound);
-          console.warn("Geocoding failed:", data.status);
+          setFullAddress(translateData.noAddressFound || 'Address not found');
+          console.warn('OSM Geocoding failed: No address data');
         }
       } catch (error) {
-        console.error("Error fetching address:", error);
-        setFullAddress(translateData?.noAddressError);
+        console.error('Error fetching address from OSM:', error);
+        setFullAddress(translateData.noAddressError || 'Error fetching address');
       }
     };
     getAddress();
-  }, [latitude, longitude, taxidoSettingData, Google_Map_Key]);
+  }, [latitude, longitude, translateData]);
 
   useEffect(() => {
     if (categoryData?.length > 0) {
@@ -117,28 +102,18 @@ export function TopCategory({ categoryData }: any) {
       }
     };
     if (isFocused) {
-      fetchRecentData(); // only run when screen is focused
+      fetchRecentData();  // only run when screen is focused
     }
   }, [isFocused]);
 
   const handlePress = () => {
     if (walletTypedata?.balance < 0) {
-      notificationHelper("", translateData?.walletLow, "error");
+      notificationHelper("", translateData.walletLow, 'error')
     } else {
       const item: any = selectedSubcategory;
-
       if (!item) return;
-      if (
-        item?.slug == "intercity" ||
-        item?.slug == "ride" ||
-        item?.slug == "ride-freight" ||
-        item?.slug == "intercity-freight" ||
-        item?.slug == "intercity-parcel" ||
-        item?.slug == "ride-parcel" ||
-        item?.slug == "schedule-freight" ||
-        item?.slug == "schedule-parcel"
-      ) {
-        navigate("Ride", {
+      if (item?.slug == 'intercity' || item?.slug == 'ride' || item?.slug == 'ride-freight' || item?.slug == 'intercity-freight' || item?.slug == 'intercity-parcel' || item?.slug == 'ride-parcel' || item?.slug == 'schedule-freight' || item?.slug == 'schedule-parcel') {
+        navigate('Ride', {
           service_ID: item?.service_id,
           service_name: item?.service_type,
           service_category_ID: item?.id,
@@ -146,37 +121,29 @@ export function TopCategory({ categoryData }: any) {
           defultAddress: fullAddress,
           defultCoords: addressCoords,
         });
-      } else if (item?.slug == "package") {
-        navigate("RentalLocation", {
+      } else if (item?.slug == 'package') {
+        navigate('RentalLocation', {
           service_ID: item?.service_id,
           service_name: item?.service_type,
           service_category_ID: item?.id,
           service_category_slug: item?.slug,
         });
-      } else if (item?.slug == "schedule") {
-        navigate("Ride", {
+      } else if (item?.slug == 'schedule') {
+        navigate('Ride', {
           service_ID: item?.service_id,
           service_name: item?.service_type,
           service_category_ID: item?.id,
           service_category_slug: item?.slug,
           defultAddress: fullAddress,
           defultCoords: addressCoords,
+
         });
-      } else if (item?.slug == "rental") {
-        navigate("RentalBooking", {
+      } else if (item?.slug == 'rental') {
+        navigate('RentalBooking', {
           service_ID: item?.service_id,
           service_name: item?.service_type,
           service_category_ID: item?.id,
           service_category_slug: item?.slug,
-        });
-      } else if (item?.service_type == 'finddriver') {
-        navigate('FindLocationScreen', {
-          service_ID: item?.service_id,
-          service_name: item?.service_type,
-          service_category_ID: item?.id,
-          service_category_slug: item?.slug,
-          defultAddress: fullAddress,
-          defultCoords: addressCoords,
         });
       }
     }
@@ -194,160 +161,119 @@ export function TopCategory({ categoryData }: any) {
 
   const convertToCoords = async (address: string) => {
     try {
+      // Use OSM Nominatim for forward geocoding
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          address,
-        )}&key=${Google_Map_Key}`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'RYD/1.0',
+            'Accept-Language': 'en'
+          }
+        }
       );
       const data = await res.json();
-      if (data.status === "OK" && data?.results?.length > 0) {
-        const { lat, lng } = data?.results[0].geometry.location;
-        return { latitude: lat, longitude: lng };
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
       } else {
-        console.warn("No results for:", address, data?.status);
+        console.warn("No results for:", address);
         return null;
       }
     } catch (err) {
-      console.error("Geocoding error:", err);
+      console.error("OSM Geocoding error:", err);
       return null;
     }
   };
 
-  const convertStopsToCoords = async (stopList: any[]) => {
-    if (!stopList || stopList.length === 0) return [];
-
-    const promises = stopList.map(async stop => {
+  const convertStopsToCoords = async (stopList: string) => {
+    const coordsArray = [];
+    for (const stop of stopList) {
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            stop,
-          )}&key=${Google_Map_Key}`,
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stop)}&limit=1`,
+          {
+            headers: {
+              'User-Agent': 'RYD/1.0',
+              'Accept-Language': 'en'
+            }
+          }
         );
         const data = await res.json();
-        if (data.status === "OK" && data.results?.length > 0) {
-          const { lat, lng } = data.results[0].geometry.location;
-          return { latitude: lat, longitude: lng };
+        if (data && data.length > 0) {
+          const { lat, lon } = data[0];
+          coordsArray.push({ latitude: parseFloat(lat), longitude: parseFloat(lon) });
+        } else {
+          console.warn("No results for stop:", stop);
+          coordsArray.push(null);
         }
-        return null;
       } catch (err) {
         console.error("Stop geocoding error:", err);
-        return null;
+        coordsArray.push(null);
       }
-    });
-
-    return Promise.all(promises);
+    }
+    return coordsArray;
   };
 
   const gotoBook = async (item: any) => {
     setIsLoadingOverlay(true);
+    const pickup = await convertToCoords(item?.pickupLocation);
+    const destination = await convertToCoords(item?.destinationFullAddress?.shortAddress);
+    const stops = await convertStopsToCoords(item?.stops || []);
 
-    try {
-      // 1. Get Pickup Coords - Use existing if available
-      let pickupPromise;
-      if (item?.pickupCoords?.lat && item?.pickupCoords?.lng) {
-        pickupPromise = Promise.resolve({
-          latitude: item.pickupCoords.lat,
-          longitude: item.pickupCoords.lng,
-        });
+    const rawLocations = [
+      pickup,
+      stops[0],
+      stops[1],
+      stops[2],
+      destination,
+    ];
+
+    const filteredLocations = rawLocations
+      .filter(coord => coord && coord.latitude != null && coord.longitude != null)
+      .map((coord: any) => ({
+        lat: coord.latitude,
+        lng: coord.longitude,
+      }));
+
+    const payload: any = {
+      locations: filteredLocations,
+      service_id: item?.service_ID,
+      service_category_id: item?.service_category_ID,
+    };
+
+    dispatch(vehicleTypeDataGet(payload)).then((res: any) => {
+      if (walletTypedata?.balance < 0) {
+        notificationHelper("", translateData.walletLow, 'error')
+        setIsLoadingOverlay(false);
       } else {
-        pickupPromise = convertToCoords(item?.pickupLocation);
-      }
-
-      // 2. Get Destination Coords - Use existing if available
-      let destPromise;
-      if (item?.destinationCoords?.lat && item?.destinationCoords?.lng) {
-        destPromise = Promise.resolve({
-          latitude: item.destinationCoords.lat,
-          longitude: item.destinationCoords.lng,
+        navigate("BookRide", {
+          destination: item?.destinationFullAddress?.shortAddress,
+          stops: item?.stops,
+          pickupLocation: item?.pickupLocation,
+          service_ID: item?.service_ID,
+          zoneValue: item?.zoneValue,
+          scheduleDate: item?.scheduleDate,
+          service_category_ID: item?.service_category_ID,
+          service_name: item?.service_name,
+          filteredLocations: filteredLocations,
+          destinationCoords: item?.destinationCoords,
+          pickupCoords: item?.pickupCoords
         });
-      } else {
-        destPromise = convertToCoords(
-          item?.destinationFullAddress?.shortAddress,
-        );
+        setIsLoadingOverlay(false);
       }
-
-      // 3. Get Stops Coords
-      const stopsPromise = convertStopsToCoords(item?.stops || []);
-
-      // Execute all in parallel
-      const [pickup, destination, stops] = await Promise.all([
-        pickupPromise,
-        destPromise,
-        stopsPromise,
-      ]);
-
-      const rawLocations = [pickup, ...(stops || []), destination];
-
-      const filteredLocations = rawLocations
-        .filter(
-          coord => coord && coord.latitude != null && coord.longitude != null,
-        )
-        .map((coord: any) => ({
-          lat: coord.latitude,
-          lng: coord.longitude,
-        }));
-
-      const payload: any = {
-        locations: filteredLocations,
-        service_id: item?.service_ID,
-        service_category_id: item?.service_category_ID,
-      };
-
-      dispatch(vehicleTypeDataGet(payload)).then((res: any) => {
-        if (walletTypedata?.balance < 0) {
-          notificationHelper("", translateData?.walletLow, "error");
-          setIsLoadingOverlay(false);
-        } else {
-          navigate("BookRide", {
-            destination: item?.destinationFullAddress?.shortAddress,
-            stops: item?.stops,
-            pickupLocation: item?.pickupLocation,
-            service_ID: item?.service_ID,
-            zoneValue: item?.zoneValue,
-            scheduleDate: item?.scheduleDate,
-            service_category_ID: item?.service_category_ID,
-            service_name: item?.service_name,
-            filteredLocations: filteredLocations,
-            destinationCoords: item?.destinationCoords,
-            pickupCoords: item?.pickupCoords,
-          });
-          setIsLoadingOverlay(false);
-        }
-      });
-    } catch (error) {
-      console.error("Error in gotoBook:", error);
-      setIsLoadingOverlay(false);
-    }
+    });
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.listContainer}>
-        <View
-          style={[
-            styles.mainLine,
-            { backgroundColor: isDark ? appColors.go : appColors.sliderLine },
-          ]}
-        />
+        <View style={[styles.mainLine, { backgroundColor: isDark ? appColors.go : appColors.sliderLine }]} />
         {showLeftArrow && (
           <TouchableOpacity
-            style={[
-              styles.backBtnStyle1,
-              {
-                left: 18,
-                backgroundColor: isDark
-                  ? appColors.darkBorder
-                  : appColors.lightGray,
-                borderColor: isDark ? appColors.darkBorder : appColors.border,
-              },
-            ]}
-            onPress={() =>
-              flatListRef.current?.scrollToOffset({ offset: 0, animated: true })
-            }
+            style={[styles.backBtnStyle1, { left: 18, backgroundColor: isDark ? appColors.darkBorder : appColors.lightGray, borderColor: isDark ? appColors.darkBorder : appColors.border }]}
+            onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })}
           >
-            <View
-              style={{ transform: [{ rotate: isRTL ? "0deg" : "180deg" }] }}
-            >
+            <View style={{ transform: [{ rotate: isRTL ? '0deg' : '180deg' }] }}>
               <BackArrow colors={appColors.primary} />
             </View>
           </TouchableOpacity>
@@ -355,21 +281,10 @@ export function TopCategory({ categoryData }: any) {
 
         {showRightArrow && (
           <TouchableOpacity
-            style={[
-              styles.backBtnStyle,
-              {
-                right: 18,
-                backgroundColor: isDark
-                  ? appColors.darkBorder
-                  : appColors.lightGray,
-                borderColor: isDark ? appColors.darkBorder : appColors.border,
-              },
-            ]}
+            style={[styles.backBtnStyle, { right: 18, backgroundColor: isDark ? appColors.darkBorder : appColors.lightGray, borderColor: isDark ? appColors.darkBorder : appColors.border }]}
             onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}
           >
-            <View
-              style={{ transform: [{ rotate: isRTL ? "180deg" : "0deg" }] }}
-            >
+            <View style={{ transform: [{ rotate: isRTL ? '180deg' : '0deg' }] }}>
               <BackArrow colors={appColors.primary} />
             </View>
           </TouchableOpacity>
@@ -386,15 +301,15 @@ export function TopCategory({ categoryData }: any) {
                 setSelectedIndex(index);
                 setSelectedSubcategory(item);
                 Vibration.vibrate(42);
-                if (item?.slug == "package") {
-                  navigate("RentalLocation", {
+                if (item?.slug == 'package') {
+                  navigate('RentalLocation', {
                     service_ID: item?.service_id,
                     service_name: item?.service_type,
                     service_category_ID: item?.id,
                     service_category_slug: item?.slug,
                   });
-                } else if (item?.slug == "rental") {
-                  navigate("RentalBooking", {
+                } else if (item?.slug == 'rental') {
+                  navigate('RentalBooking', {
                     service_ID: item?.service_id,
                     service_name: item?.service_type,
                     service_category_ID: item?.id,
@@ -403,169 +318,120 @@ export function TopCategory({ categoryData }: any) {
                 }
               }}
               isScrollable={isScrollable}
-              totalItems={categoryData?.length}
+              totalItems={categoryData.length}
             />
           )}
           horizontal
           showsHorizontalScrollIndicator={false}
           inverted={isRTL}
-          keyExtractor={item => item.name.toString()}
+          keyExtractor={(item) => item.name.toString()}
           onScroll={handleScroll}
         />
       </View>
 
       {categoryData?.length > 0 && (
         <>
-          {selectedSubcategory?.slug != "rental" &&
-            selectedSubcategory?.slug != "package" && (
-              <TouchableOpacity
-                onPress={handlePress}
-                activeOpacity={0.7}
-                style={[
-                  styles.packageMainView,
-                  {
-                    backgroundColor: bgFullStyle,
-                    borderColor: isDark
-                      ? appColors.darkBorder
-                      : appColors.border,
-                  },
-                ]}
+          {selectedSubcategory?.slug != 'rental' && selectedSubcategory?.slug != 'package' && (
+            <TouchableOpacity onPress={handlePress} activeOpacity={0.7}
+              style={[styles.packageMainView, {
+                backgroundColor: bgFullStyle,
+                borderColor: isDark ? appColors.darkBorder : appColors.border,
+              }]}
+            >
+              <View
+                style={[styles.searchView, {
+                  backgroundColor: isDark ? appColors.darkPrimary : appColors.lightGray,
+                  flexDirection: viewRTLStyle,
+                }]}
               >
-                <View
-                  style={[
-                    styles.searchView,
-                    {
-                      backgroundColor: isDark
-                        ? appColors.darkPrimary
-                        : appColors.lightGray,
-                      flexDirection: viewRTLStyle,
-                    },
-                  ]}
+                <Search />
+                <Text
+                  style={[styles.whereNext, {
+
+                    color: isDark ? appColors.whiteColor : appColors.primaryText
+                  }]}
                 >
-                  <Search />
-                  <Text
-                    style={[
-                      styles.whereNext,
-                      {
-                        color: isDark
-                          ? appColors.whiteColor
-                          : appColors.primaryText,
-                      },
-                    ]}
-                  >
-                    {translateData?.whereNext}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          {!isLoadingOverlay &&
-            recentDatas
-              ?.filter(
-                (item: any) =>
-                  item?.service_name === selectedSubcategory?.service_type,
-              )
-              ?.slice(0, 2)
-              .map((item: any, index: number) => (
-                <React.Fragment key={index}>
-                  {selectedSubcategory?.slug != "rental" &&
-                    selectedSubcategory?.slug != "package" && (
-                      <>
-                        <TouchableOpacity
-                          style={[
-                            styles.centerLocation,
-                            {
-                              flexDirection: viewRTLStyle,
-                              backgroundColor: isDark
-                                ? appColors.darkPrimary
-                                : appColors.whiteColor,
-                              borderColor: isDark
-                                ? appColors.darkBorder
-                                : appColors.border,
-                            },
-                            index == 0 && { marginTop: windowHeight(12) },
-                          ]}
-                          onPress={() => gotoBook(item)}
-                        >
-                          <View
-                            style={{
-                              backgroundColor: isDark
-                                ? appColors.darkHeader
-                                : appColors.lightGray,
-                              padding: windowHeight(8),
-                              borderRadius: windowHeight(20),
-                            }}
+                  {translateData.whereNext}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          {!isLoadingOverlay && (
+            <FlatList
+              data={recentDatas && recentDatas?.slice(0, 2)}
+              keyExtractor={(item, index) => index?.toString()}
+              renderItem={({ item, index }: any) => (
+                <>
+                  {selectedSubcategory?.slug != 'rental' && selectedSubcategory?.slug != 'package' && (
+                    <>
+                      {/* <TouchableOpacity
+                        style={[
+                          styles.centerLocation,
+                          { flexDirection: viewRTLStyle, backgroundColor: isDark ? appColors.darkPrimary : appColors.whiteColor, borderColor: isDark ? appColors.darkBorder : appColors.border },
+                          index == 0 && { marginTop: windowHeight(12) },
+                        ]}
+                        onPress={() => gotoBook(item)}
+                      >
+                        <View style={{ backgroundColor: isDark ? appColors.darkHeader : appColors.lightGray, padding: windowHeight(8), borderRadius: windowHeight(20) }}>
+                          <History />
+                        </View>
+                        <View>
+                          <Text
+                            style={[
+                              styles.adajanText,
+                              { color: isDark ? appColors.whiteColor : appColors.primaryText },
+                              { textAlign: isRTL ? 'right' : 'left' }
+
+                            ]}
                           >
-                            <History />
-                          </View>
-                          <View>
-                            <Text
-                              style={[
-                                styles.adajanText,
-                                {
-                                  color: isDark
-                                    ? appColors.whiteColor
-                                    : appColors.primaryText,
-                                },
-                                { textAlign: isRTL ? "right" : "left" },
-                              ]}
-                            >
-                              {item?.destinationFullAddress?.shortAddress
-                                ?.length > 30
-                                ? item?.destinationFullAddress?.shortAddress?.slice(
-                                  0,
-                                  30,
-                                ) + "..."
-                                : item?.destinationFullAddress?.shortAddress}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.titleTextDetail,
-                                {
-                                  textAlign: textRTLStyle,
-                                },
-                              ]}
-                            >
-                              {item?.destinationFullAddress?.detailAddress
-                                ?.length > 30
-                                ? item?.destinationFullAddress?.detailAddress?.slice(
-                                  0,
-                                  30,
-                                ) + "..."
-                                : item?.destinationFullAddress?.detailAddress}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                        <View
-                          style={[
-                            styles.locationLine,
-                            {
-                              borderColor: isDark
-                                ? appColors.darkBorder
-                                : appColors.border,
-                            },
-                          ]}
-                        />
-                      </>
-                    )}
-                </React.Fragment>
-              ))}
+                            {item?.destinationFullAddress?.shortAddress?.length > 30
+                              ? item?.destinationFullAddress?.shortAddress?.slice(0, 30) + '...'
+                              : item?.destinationFullAddress?.shortAddress}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.titleTextDetail,
+                              {
+                                textAlign: textRTLStyle,
+                              },
+                            ]}
+                          >
+                            {item?.destinationFullAddress?.detailAddress?.length > 30
+                              ? item?.destinationFullAddress?.detailAddress?.slice(0, 30) + '...'
+                              : item?.destinationFullAddress?.detailAddress}
+                          </Text>
+                        </View>
+                      </TouchableOpacity> */}
+                      <View
+                        style={[
+                          styles.locationLine,
+                          { borderColor: isDark ? appColors.darkBorder : appColors.border }
+                        ]}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            />
+          )}
           {isLoadingOverlay && (
             <View style={styles.loaderAddress}>
               <ActivityIndicator size="large" color={appColors.primary} />
             </View>
           )}
-          {selectedSubcategory?.slug == "rental" && (
+          {selectedSubcategory?.slug == 'rental' && (
             <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
               <Image source={Images.rentalBanner} style={styles.rentalImage} />
             </TouchableOpacity>
           )}
-          {selectedSubcategory?.slug == "package" && (
+          {selectedSubcategory?.slug == 'package' && (
             <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
               <Image source={Images.packagebanner} style={styles.rentalImage} />
             </TouchableOpacity>
           )}
         </>
-      )}
-    </View>
+      )
+      }
+    </View >
   );
 }

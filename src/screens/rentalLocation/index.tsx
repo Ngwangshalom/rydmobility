@@ -31,7 +31,7 @@ export function RentalLocation() {
   const { selectedAddress, fieldValue } = route.params || {};
   const [fieldLength, setFieldLength] = useState<number>(0);
   const [addressData, setAddressData] = useState<string>("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isInitialFetchDone, setIsInitialFetchDone] = useState(false);
@@ -40,41 +40,47 @@ export function RentalLocation() {
   const { translateData, settingData } = useSelector((state) => state.setting);
   const context = useContext(LocationContext);
   const { latitude, longitude } = useStoredLocation();
-  const { linearColorStyleTwo, linearColorStyle, viewRTLStyle, textColorStyle, bgFullLayout, textRTLStyle, isDark, Google_Map_Key } = useValues();
-  const [pickupCoords, setPickupCoords] = useState();
+  const { linearColorStyleTwo, linearColorStyle, viewRTLStyle, textColorStyle, bgFullLayout, textRTLStyle, isDark } = useValues();
+  const [pickupCoords, setPickupCoords] = useState<{latitude: number, longitude: number} | null>(null);
   const { pickupLocationLocal, setPickupLocationLocal } = context;
   const pickupRef = useRef<TextInput>(null);
-
 
   useEffect(() => {
     fetchAddressFromCoords(latitude, longitude);
   }, [latitude, longitude]);
 
-  const fetchAddressFromCoords = async (latitude, longitude) => {
-    if (!latitude || !longitude) return;
+  // OSM Reverse Geocoding (coordinates to address)
+  const fetchAddressFromCoords = async (lat: number, lon: number) => {
+    if (!lat || !lon) return;
 
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${Google_Map_Key}`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Ryd/1.0 (mail@rydmobbility.com)',
+          'Accept-Language': 'en'
+        }
+      });
       const json = await response.json();
 
-      if (json.status === "OK" && json.results?.length > 0) {
-        const addressComponents = json.results[0].address_components;
-
-        const routeName = addressComponents.find(comp => comp.types.includes('route'))?.short_name;
-        const locality = addressComponents.find(comp => comp.types.includes('locality'))?.short_name;
-        const subLocality = addressComponents.find(comp => comp.types.includes('sublocality'))?.short_name;
-
-        const shortAddress = [routeName, subLocality || locality].filter(Boolean).join(', ');
-        const fullAddress = json?.results[0]?.formatted_address;
+      if (json.display_name) {
+        const addressComponents = json.address;
+        
+        // Extract address parts from OSM response
+        const road = addressComponents?.road || "";
+        const suburb = addressComponents?.suburb || "";
+        const city = addressComponents?.city || addressComponents?.town || "";
+        const shortAddress = [road, suburb, city].filter(Boolean).join(', ');
+        const fullAddress = json.display_name;
         const locationToSet = shortAddress || fullAddress;
 
         // Set state utama
         setPickupLocation(locationToSet);
+        setPickupCoords({ latitude: lat, longitude: lon });
       }
     } catch (error) {
-      console.error("Error fetching short address:", error);
+      console.error("Error fetching address from OSM:", error);
     }
   };
 
@@ -97,30 +103,35 @@ export function RentalLocation() {
     }
   }, [selectedAddress, fieldValue]);
 
-
   useEffect(() => {
     if (pickupLocation) convertToCoords(pickupLocation, setPickupCoords);
   }, [pickupLocation]);
 
-  const convertToCoords = async (address, setter) => {
+  // OSM Forward Geocoding (address to coordinates)
+  const convertToCoords = async (address: string, setter: Function) => {
     try {
       const res = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${Google_Map_Key}`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&addressdetails=1&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'Ryd/1.0 (mail@rydmobbility.com)',
+            'Accept-Language': 'en'
+          }
+        }
       );
       const data = await res.json();
-      if (data.status === 'OK' && data.results?.length > 0) {
-        const { lat, lng } = data.results[0].geometry.location;
-        setter({ latitude: lat, longitude: lng });
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setter({ latitude: parseFloat(lat), longitude: parseFloat(lon) });
       } else {
-        console.warn("No results for:", address, data.status);
+        console.warn("No results for:", address);
         setter(null);
       }
     } catch (err) {
-      console.error("Geocoding error:", err);
+      console.error("Geocoding error from OSM:", err);
       setter(null);
     }
   };
-
 
   useEffect(() => {
     const fetchRecentData = async () => {
@@ -133,43 +144,59 @@ export function RentalLocation() {
     fetchRecentData();
   }, []);
 
+  // OSM Address Autocomplete
   const fetchAddressSuggestions = async (input: string) => {
     if (input?.length >= 3) {
-      const apiUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${input}&key=${Google_Map_Key}`;
+      const apiUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&addressdetails=1&limit=5`;
       try {
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, {
+          headers: {
+            'User-Agent': 'Ryd/1.0 (mail@rydmobbility.com)',
+            'Accept-Language': 'en'
+          }
+        });
         const data = await response.json();
 
-        if (data.status !== "OK") {
-          console.error("API Error:", data.status, data.error_message || "");
-          return;
-        }
-        if (data.predictions) {
-          const places = data.predictions.map((prediction) => ({
-            id: prediction.place_id,
-            shortAddress: prediction.structured_formatting.main_text,
-            detailAddress: prediction.structured_formatting.secondary_text,
+        if (data && data.length > 0) {
+          const places = data.map((item: any) => ({
+            id: item.place_id,
+            shortAddress: item.display_name.split(',')[0], // First part of address
+            detailAddress: item.display_name,
+            lat: item.lat,
+            lon: item.lon,
+            osmData: item
           }));
           setSuggestions(places);
+        } else {
+          setSuggestions([]);
         }
       } catch (error) {
-        console.error("Error fetching address suggestions:", error);
+        console.error("Error fetching address suggestions from OSM:", error);
+        setSuggestions([]);
       }
     } else {
       setSuggestions([]);
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
+  const handleSuggestionClick = (suggestion: any) => {
     Keyboard.dismiss();
+    const addressToUse = suggestion.shortAddress || suggestion.detailAddress;
+    
     if (activeField === "pickupLocation") {
-      setPickupLocation(suggestion);
+      setPickupLocation(addressToUse);
+      if (suggestion.lat && suggestion.lon) {
+        setPickupCoords({
+          latitude: parseFloat(suggestion.lat),
+          longitude: parseFloat(suggestion.lon)
+        });
+      }
     } else if (activeField === "destination") {
-      setDestination(suggestion);
+      setDestination(addressToUse);
     } else if (activeField && activeField.startsWith("stop-")) {
       const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       const updatedStops = [...stops];
-      updatedStops[stopIndex] = suggestion;
+      updatedStops[stopIndex] = addressToUse;
       setStops(updatedStops);
     }
   };
@@ -201,23 +228,27 @@ export function RentalLocation() {
   }, [activeField, stops, pickupLocation, destination]);
 
   const coordsData = async () => {
-    const geocodeAddress = async (address) => {
+    const geocodeAddress = async (address: string) => {
       try {
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-            address
-          )}&key=${Google_Map_Key}`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&addressdetails=1&limit=1`,
+          {
+            headers: {
+              'User-Agent': 'Ryd/1.0 (mail@rydmobbility.com)',
+              'Accept-Language': 'en'
+            }
+          }
         );
         const dataMap = await response.json();
-        if (dataMap.results?.length > 0) {
-          const location = dataMap.results[0].geometry.location;
+        if (dataMap && dataMap.length > 0) {
+          const location = dataMap[0];
           return {
-            latitude: location.lat,
-            longitude: location.lng,
+            latitude: parseFloat(location.lat),
+            longitude: parseFloat(location.lon),
           };
         }
       } catch (error) {
-        console.error("Error geocoding address:", error);
+        console.error("Error geocoding address with OSM:", error);
       }
       return null;
     };
@@ -242,14 +273,15 @@ export function RentalLocation() {
     const payload = {
       locations: [
         {
-          lat: latitude,
-          lng: longitude,
+          lat: lat,
+          lng: lng,
         },
       ],
       service_id: service_ID.toString(),
       service_category_id: service_category_ID.toString(),
     };
     dispatch(vehicleTypeDataGet(payload)).then(res => {
+      // Handle response if needed
     });
   };
 
@@ -262,7 +294,7 @@ export function RentalLocation() {
   const gotoBook = async () => {
     const token = await getValue('token');
     if (!token) {
-      navigate('SignIn')
+      navigate('SignIn');
     }
 
     setLoading(true);
@@ -274,7 +306,7 @@ export function RentalLocation() {
   };
 
   const gotoNext = () => {
-    setLoading(false)
+    setLoading(false);
     navigate("Rental", {
       pickupLocation,
       service_ID,
@@ -286,27 +318,36 @@ export function RentalLocation() {
 
   const gotoSelection = () => {
     Keyboard.dismiss();
-    navigate("LocationSelect", { field: activeField, screenValue: "RentalLocation", service_ID: service_ID, service_name: service_name, service_category_ID: service_category_ID, service_category_slug: service_category_slug, formattedDate: formattedDate, formattedTime: formattedTime });
+    navigate("LocationSelect", { 
+      field: activeField, 
+      screenValue: "RentalLocation", 
+      service_ID: service_ID, 
+      service_name: service_name, 
+      service_category_ID: service_category_ID, 
+      service_category_slug: service_category_slug, 
+      formattedDate: formattedDate, 
+      formattedTime: formattedTime 
+    });
   };
 
-  const handlerecentClick = (suggestion: string) => {
+  const handlerecentClick = (suggestion: any) => {
     Keyboard.dismiss();
     if (activeField === "pickupLocation") {
-      setPickupLocation(suggestion.location);
+      setPickupLocation(suggestion.location || suggestion);
     } else if (activeField === "destination") {
-      setDestination(suggestion.location);
+      setDestination(suggestion.location || suggestion);
     } else if (activeField && activeField.startsWith("stop-")) {
       const stopIndex = parseInt(activeField.split("-")[1], 10) - 1;
       const updatedStops = [...stops];
-      updatedStops[stopIndex] = suggestion;
+      updatedStops[stopIndex] = suggestion.location || suggestion;
       setStops(updatedStops);
     }
   };
 
   const modelOpen = () => {
-    setModalVisible(false)
-    setLoading(false)
-  }
+    setModalVisible(false);
+    setLoading(false);
+  };
 
   const handleInputChange = (text: string, id: number) => {
     if (id === 1) {
@@ -327,7 +368,16 @@ export function RentalLocation() {
       token = value;
     });
     if (token) {
-      navigate("SavedLocation", { selectedLocation: "RentalLocation", savefield: activeField, service_ID: service_ID, service_name: service_name, service_category_ID: service_category_ID, service_category_slug: service_category_slug, formattedDate: formattedDate, formattedTime: formattedTime });
+      navigate("SavedLocation", { 
+        selectedLocation: "RentalLocation", 
+        savefield: activeField, 
+        service_ID: service_ID, 
+        service_name: service_name, 
+        service_category_ID: service_category_ID, 
+        service_category_slug: service_category_slug, 
+        formattedDate: formattedDate, 
+        formattedTime: formattedTime 
+      });
     } else {
       let screenName = "RentalLocation";
       if (settingData.values.activation.login_number == 1) {
@@ -340,7 +390,7 @@ export function RentalLocation() {
     }
   };
 
-  const renderItemRecentData = ({ item: suggestion, index }) => (
+  const renderItemRecentData = ({ item: suggestion, index }: {item: any, index: number}) => (
     <View style={{ paddingHorizontal: windowWidth(15) }}>
       <TouchableOpacity
         activeOpacity={0.7}
@@ -371,7 +421,7 @@ export function RentalLocation() {
             { textAlign: textRTLStyle },
           ]}
         >
-          {suggestion.location}
+          {suggestion.location || suggestion}
         </Text>
       </TouchableOpacity>
       {index !== recentDatas?.length - 1 && (
@@ -503,13 +553,13 @@ export function RentalLocation() {
             { borderColor: isDark ? appColors.darkBorder : appColors.border },
           ]}
         >
-          {suggestions?.length >= 3 ? (
+          {suggestions?.length > 0 ? (
             suggestions?.map((suggestion, index) => (
               <TouchableOpacity
                 activeOpacity={0.7}
                 style={[styles.addressBtn, { flexDirection: viewRTLStyle }]}
                 key={index}
-                onPress={() => handleSuggestionClick(suggestion?.shortAddress)}
+                onPress={() => handleSuggestionClick(suggestion)}
               >
                 <View
                   style={[
@@ -593,4 +643,4 @@ export function RentalLocation() {
       </Modal>
     </ScrollView>
   );
-}
+}``
