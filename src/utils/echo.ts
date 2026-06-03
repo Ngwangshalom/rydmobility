@@ -31,26 +31,25 @@ const getEchoInstance = async () => {
 
   cachedToken = token;
 
-  echoInstance = new Echo({
-    broadcaster: 'pusher',
-    key: '5e33ca9d4c3e62a5d5a9',
-    wsHost: 'rydsafe.com',
-    wsPort: 443,
-    wssPort: 443,
-    forceTLS: true,
-    disableStats: true,
-    cluster: 'ap2',
-    enabledTransports: ['ws', 'wss'],
-    Pusher: PusherClient,
-    authEndpoint: `${API_URL}/api/broadcasting/auth`,
-    auth: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
+echoInstance = new Echo({
+  broadcaster: 'reverb',          // ← change from 'pusher' to 'reverb'
+  key: 'ryd-safe-key',            // ← match REVERB_APP_KEY
+  wsHost: 'rydsafe.com',
+  wsPort: 443,
+  wssPort: 443,
+  forceTLS: true,
+  disableStats: true,
+  enabledTransports: ['ws', 'wss'],
+  authEndpoint: `${API_URL}/api/broadcasting/auth`,
+  auth: {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
     },
-  });
+  },
+});
 
+  
 
   return echoInstance;
 };
