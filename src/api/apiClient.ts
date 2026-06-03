@@ -48,6 +48,7 @@ api.interceptors.request.use(
 
 
       const token = await getValue("token");
+      console.log(`[API Interceptor] Preparing request to ${config.url} with token: ${token}`);
       const language = await getValue("selectedLanguage");
       const defaultLng = await getValue("defaultLanguage");
       const currentLng = language || defaultLng;
