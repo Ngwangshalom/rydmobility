@@ -2,7 +2,7 @@
   "name": "Ryd",
   "displayName": "Ryd",
   "android": {
-    "package": "com.taxidouser.webiots",
+    "package": "com.ryd",
     "permissions": [
       "INTERNET"
     ]
